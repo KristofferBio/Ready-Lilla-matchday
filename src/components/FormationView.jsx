@@ -169,7 +169,7 @@ export default function FormationView({
 
   // ── Render ─────────────────────────────────────────────────────
 
-  const W = 340, H = 520
+  const W = 340, H = 320
 
   return (
     <div className="flex flex-col items-center gap-3 select-none w-full">
