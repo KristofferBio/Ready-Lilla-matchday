@@ -1,4 +1,9 @@
 import { loadFromCloud, saveToCloud } from './firebase'
+import { FORMATION_KEYS } from './formations'
+
+function validFormation(f) {
+  return FORMATION_KEYS.includes(f) ? f : FORMATION_KEYS[0]
+}
 
 function keys(teamId) {
   return {
@@ -14,7 +19,7 @@ export function loadSquadLocal(teamId) {
   try { return JSON.parse(localStorage.getItem(keys(teamId).SQUAD)) ?? [] } catch { return [] }
 }
 export function loadFormationLocal(teamId) {
-  return localStorage.getItem(keys(teamId).FORMATION) ?? '3-2-3'
+  return localStorage.getItem(keys(teamId).FORMATION) ?? '3-3-2'
 }
 export function loadPositionsLocal(teamId) {
   try { return JSON.parse(localStorage.getItem(keys(teamId).POSITIONS)) ?? {} } catch { return {} }
@@ -34,14 +39,14 @@ export async function loadAllFromCloud(teamId) {
   if (data) {
     cacheLocally(teamId, data)
     return {
-      squad:     data.squad     ?? loadSquadLocal(teamId),
-      formation: data.formation ?? loadFormationLocal(teamId),
-      positions: data.positions ?? loadPositionsLocal(teamId),
+      squad:     data.squad                        ?? loadSquadLocal(teamId),
+      formation: validFormation(data.formation)    ?? loadFormationLocal(teamId),
+      positions: data.positions                    ?? loadPositionsLocal(teamId),
     }
   }
   return {
     squad:     loadSquadLocal(teamId),
-    formation: loadFormationLocal(teamId),
+    formation: validFormation(loadFormationLocal(teamId)),
     positions: loadPositionsLocal(teamId),
   }
 }
