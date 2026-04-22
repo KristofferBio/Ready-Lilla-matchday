@@ -45,6 +45,20 @@ export const FORMATIONS = {
       { id: 'fr',  label: 'HK',  x: 82, y: 22 },
     ],
   },
+  '3-4-1': {
+    label: '3-4-1',
+    positions: [
+      { id: 'gk',  label: 'MV',  x: 50, y: 92 },
+      { id: 'dl',  label: 'VB',  x: 18, y: 75 },
+      { id: 'dc',  label: 'MB',  x: 50, y: 75 },
+      { id: 'dr',  label: 'HB',  x: 82, y: 75 },
+      { id: 'ml',  label: 'VM',  x: 15, y: 52 },
+      { id: 'mcl', label: 'CM',  x: 38, y: 52 },
+      { id: 'mcr', label: 'CM',  x: 62, y: 52 },
+      { id: 'mr',  label: 'HM',  x: 85, y: 52 },
+      { id: 'fc',  label: 'AS',  x: 50, y: 22 },
+    ],
+  },
 }
 
 export const FORMATION_KEYS = Object.keys(FORMATIONS)
