@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import MatchClock from './components/MatchClock'
 import FormationView from './components/FormationView'
 import SubLog from './components/SubLog'
 import SquadManager from './components/SquadManager'
 import { FORMATION_KEYS } from './formations'
 import {
-  loadSquad, saveSquad,
+  loadSquad, loadSquadLocal, saveSquad,
   loadFormation, saveFormation,
   loadPositions, savePositions,
 } from './storage'
@@ -17,11 +17,18 @@ const TABS = [
 
 export default function App() {
   const [tab, setTab]             = useState('kampdag')
-  const [squad, setSquad]         = useState(loadSquad)
+  const [squad, setSquad]         = useState(loadSquadLocal)
   const [formation, setFormation] = useState(loadFormation)
   const [positions, setPositions] = useState(loadPositions)
   const [subLog, setSubLog]       = useState([])
   const [minute, setMinute]       = useState(0)
+
+  // Load squad from cloud on startup
+  useEffect(() => {
+    loadSquad().then(cloudSquad => {
+      setSquad(cloudSquad)
+    })
+  }, [])
 
   function handleSquadChange(newSquad) {
     setSquad(newSquad)
@@ -52,13 +59,11 @@ export default function App() {
 
   return (
     <div className="flex flex-col min-h-svh bg-gray-950 text-white">
-      {/* ── Header + clock ── */}
       <header className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between gap-3 flex-wrap sticky top-0 z-10">
         <h1 className="text-lg font-bold text-green-400 tracking-tight">Kampstøtte</h1>
         <MatchClock onMinute={setMinute} />
       </header>
 
-      {/* ── Tab bar ── */}
       <nav className="bg-gray-900 border-b border-gray-800 flex sticky top-[68px] z-10">
         {TABS.map(t => (
           <button
@@ -75,11 +80,9 @@ export default function App() {
         ))}
       </nav>
 
-      {/* ── Content ── */}
       <main className="flex-1 overflow-y-auto pb-8">
         {tab === 'kampdag' && (
           <div className="p-3 max-w-sm mx-auto flex flex-col gap-4">
-            {/* Formation selector */}
             <div className="flex gap-2 justify-center">
               {FORMATION_KEYS.map(f => (
                 <button
@@ -96,7 +99,6 @@ export default function App() {
               ))}
             </div>
 
-            {/* Field + bench */}
             <FormationView
               formation={formation}
               positions={positions}
@@ -105,7 +107,6 @@ export default function App() {
               onSubstitution={handleSubstitution}
             />
 
-            {/* Substitution log – inline */}
             <SubLog log={subLog} squad={squad} />
           </div>
         )}

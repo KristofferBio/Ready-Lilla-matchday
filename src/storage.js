@@ -1,10 +1,12 @@
+import { loadSquadFromCloud, saveSquadToCloud } from './firebase'
+
 const KEYS = {
-  SQUAD: 'kampstotte_squad',
+  SQUAD:     'kampstotte_squad',
   FORMATION: 'kampstotte_formation',
   POSITIONS: 'kampstotte_positions',
 }
 
-export function loadSquad() {
+export function loadSquadLocal() {
   try {
     return JSON.parse(localStorage.getItem(KEYS.SQUAD)) ?? []
   } catch {
@@ -12,8 +14,18 @@ export function loadSquad() {
   }
 }
 
+export async function loadSquad() {
+  const cloud = await loadSquadFromCloud()
+  if (cloud !== null) {
+    localStorage.setItem(KEYS.SQUAD, JSON.stringify(cloud))
+    return cloud
+  }
+  return loadSquadLocal()
+}
+
 export function saveSquad(squad) {
   localStorage.setItem(KEYS.SQUAD, JSON.stringify(squad))
+  saveSquadToCloud(squad)
 }
 
 export function loadFormation() {
