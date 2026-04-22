@@ -198,6 +198,7 @@ export default function App() {
               formation={formation}
               positions={positions}
               squad={squad}
+              subLog={subLog}
               onPositionsChange={handlePositionsChange}
               onSubstitution={handleSubstitution}
             />

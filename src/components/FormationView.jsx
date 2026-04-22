@@ -5,6 +5,7 @@ export default function FormationView({
   formation,
   positions,
   squad,
+  subLog,
   onPositionsChange,
   onSubstitution,
 }) {
@@ -34,7 +35,19 @@ export default function FormationView({
   const formDef    = FORMATIONS[formation]
   const playerById = Object.fromEntries(squad.map(p => [p.id, p]))
   const onField    = new Set(Object.values(positions))
-  const bench      = squad.filter(p => !onField.has(p.id)).sort((a, b) => a.number - b.number)
+
+  // Last sub-off index per player (higher = more recently benched)
+  const lastSubOffIndex = {}
+  ;(subLog ?? []).forEach((entry, i) => { lastSubOffIndex[entry.outId] = i })
+
+  const bench = squad.filter(p => !onField.has(p.id)).sort((a, b) => {
+    const ai = lastSubOffIndex[a.id]
+    const bi = lastSubOffIndex[b.id]
+    if (ai === undefined && bi === undefined) return a.number - b.number
+    if (ai === undefined) return -1
+    if (bi === undefined) return 1
+    return ai - bi  // earlier sub-off = been on bench longer = leftmost
+  })
 
   // ── Coordinate helpers ─────────────────────────────────────────
 
