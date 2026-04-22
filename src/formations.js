@@ -3,20 +3,6 @@
 // x: 0-100 (left to right), y: 0-100 (top=opponent goal, bottom=own goal)
 
 export const FORMATIONS = {
-  '3-2-3': {
-    label: '3-2-3',
-    positions: [
-      { id: 'gk',  label: 'MV',  x: 50, y: 92 },
-      { id: 'dl',  label: 'VB',  x: 18, y: 75 },
-      { id: 'dc',  label: 'MB',  x: 50, y: 75 },
-      { id: 'dr',  label: 'HB',  x: 82, y: 75 },
-      { id: 'ml',  label: 'VM',  x: 30, y: 55 },
-      { id: 'mr',  label: 'HM',  x: 70, y: 55 },
-      { id: 'fl',  label: 'VK',  x: 18, y: 30 },
-      { id: 'fc',  label: 'AS',  x: 50, y: 25 },
-      { id: 'fr',  label: 'HK',  x: 82, y: 30 },
-    ],
-  },
   '3-3-2': {
     label: '3-3-2',
     positions: [
