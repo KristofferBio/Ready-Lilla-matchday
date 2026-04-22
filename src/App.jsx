@@ -6,8 +6,8 @@ import SquadManager from './components/SquadManager'
 import { FORMATION_KEYS, FORMATIONS } from './formations'
 import {
   loadAllFromCloud,
-  loadSquadLocal, loadFormationLocal, loadPositionsLocal,
-  saveSquad, saveFormation, savePositions,
+  loadSquadLocal, loadFormationLocal, loadPositionsLocal, loadSubLogLocal,
+  saveSquad, saveFormation, savePositions, saveSubLog,
 } from './storage'
 
 const TEAMS = [
@@ -25,6 +25,7 @@ function emptyTeamState(teamId) {
     squad:     loadSquadLocal(teamId),
     formation: loadFormationLocal(teamId),
     positions: loadPositionsLocal(teamId),
+    subLog:    loadSubLogLocal(teamId),
   }
 }
 
@@ -35,13 +36,11 @@ export default function App() {
     'ready-lilla': emptyTeamState('ready-lilla'),
     'ready-gronn': emptyTeamState('ready-gronn'),
   })
-  const [subLogs, setSubLogs]       = useState({ 'ready-lilla': [], 'ready-gronn': [] })
   const [minute, setMinute]         = useState(0)
   const [showResetConfirm, setShowResetConfirm] = useState(false)
 
   const team = TEAMS.find(t => t.id === activeTeam)
-  const { squad, formation, positions } = teamData[activeTeam]
-  const subLog = subLogs[activeTeam]
+  const { squad, formation, positions, subLog } = teamData[activeTeam]
 
   // Load both teams from cloud on startup
   useEffect(() => {
@@ -96,18 +95,17 @@ export default function App() {
   // ── Substitution ──────────────────────────────────────────────
 
   function handleSubstitution(inId, outId) {
-    setSubLogs(prev => ({
-      ...prev,
-      [activeTeam]: [...prev[activeTeam], { minute, inId, outId }],
-    }))
+    const newLog = [...teamData[activeTeam].subLog, { minute, inId, outId }]
+    updateTeam(activeTeam, { subLog: newLog })
+    saveSubLog(activeTeam, newLog)
   }
 
   // ── Reset ─────────────────────────────────────────────────────
 
   function handleReset() {
-    updateTeam(activeTeam, { positions: {} })
+    updateTeam(activeTeam, { positions: {}, subLog: [] })
     savePositions(activeTeam, {})
-    setSubLogs(prev => ({ ...prev, [activeTeam]: [] }))
+    saveSubLog(activeTeam, [])
     setShowResetConfirm(false)
   }
 

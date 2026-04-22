@@ -1,15 +1,36 @@
 import { useState, useEffect, useRef } from 'react'
 
+const CLOCK_KEY = 'kampstotte_clock'
+
+function loadPersistedClock() {
+  try { return JSON.parse(localStorage.getItem(CLOCK_KEY)) } catch { return null }
+}
+
+function initFromStorage() {
+  const saved = loadPersistedClock()
+  if (!saved) return { running: false, elapsed: 0 }
+  const elapsed = saved.running && saved.virtualStart != null
+    ? Math.max(0, Math.floor((Date.now() - saved.virtualStart) / 1000))
+    : saved.elapsed ?? 0
+  return { running: saved.running ?? false, elapsed }
+}
+
 export default function MatchClock({ onMinute }) {
-  const [running, setRunning] = useState(false)
-  const [elapsed, setElapsed] = useState(0)
+  const init = useRef(initFromStorage()).current
+  const [running, setRunning] = useState(init.running)
+  const [elapsed, setElapsed] = useState(init.elapsed)
   const intervalRef = useRef(null)
-  const startRef = useRef(null)
-  const elapsedRef = useRef(0)
+  const startRef    = useRef(null)
+  const elapsedRef  = useRef(init.elapsed)
+
+  useEffect(() => {
+    onMinute(Math.floor(init.elapsed / 60))
+  }, [])
 
   useEffect(() => {
     if (running) {
       startRef.current = Date.now() - elapsedRef.current * 1000
+      localStorage.setItem(CLOCK_KEY, JSON.stringify({ running: true, virtualStart: startRef.current }))
       intervalRef.current = setInterval(() => {
         const secs = Math.floor((Date.now() - startRef.current) / 1000)
         elapsedRef.current = secs
@@ -18,6 +39,7 @@ export default function MatchClock({ onMinute }) {
       }, 500)
     } else {
       clearInterval(intervalRef.current)
+      localStorage.setItem(CLOCK_KEY, JSON.stringify({ running: false, elapsed: elapsedRef.current }))
     }
     return () => clearInterval(intervalRef.current)
   }, [running])
@@ -28,6 +50,7 @@ export default function MatchClock({ onMinute }) {
     setElapsed(0)
     elapsedRef.current = 0
     onMinute(0)
+    localStorage.removeItem(CLOCK_KEY)
   }
 
   const mins = String(Math.floor(elapsed / 60)).padStart(2, '0')
