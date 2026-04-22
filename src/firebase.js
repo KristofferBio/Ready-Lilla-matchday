@@ -13,19 +13,22 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig)
 const db  = getFirestore(app)
-const REF = doc(db, 'teams', 'ready-lilla')
 
-export async function loadFromCloud() {
+function ref(teamId) {
+  return doc(db, 'teams', teamId)
+}
+
+export async function loadFromCloud(teamId) {
   try {
-    const snap = await getDoc(REF)
+    const snap = await getDoc(ref(teamId))
     if (snap.exists()) return snap.data()
   } catch {}
   return null
 }
 
-export async function saveToCloud(data) {
+export async function saveToCloud(teamId, data) {
   try {
-    await setDoc(REF, data, { merge: true })
+    await setDoc(ref(teamId), data, { merge: true })
   } catch (e) {
     console.warn('Cloud save failed:', e)
   }

@@ -10,86 +10,145 @@ import {
   saveSquad, saveFormation, savePositions,
 } from './storage'
 
-const TABS = [
-  { id: 'kampdag', label: 'Kampdag' },
-  { id: 'squad',   label: 'Tropp' },
+const TEAMS = [
+  { id: 'ready-lilla', label: 'Lilla', color: 'bg-purple-700', activeColor: 'bg-purple-500', textColor: 'text-purple-300' },
+  { id: 'ready-gronn', label: 'Grønn', color: 'bg-green-800',  activeColor: 'bg-green-600',  textColor: 'text-green-300'  },
 ]
 
+const TABS = [
+  { id: 'kampdag', label: 'Kampdag' },
+  { id: 'squad',   label: 'Tropp'   },
+]
+
+function emptyTeamState(teamId) {
+  return {
+    squad:     loadSquadLocal(teamId),
+    formation: loadFormationLocal(teamId),
+    positions: loadPositionsLocal(teamId),
+  }
+}
+
 export default function App() {
-  const [tab, setTab]             = useState('kampdag')
-  const [squad, setSquad]         = useState(loadSquadLocal)
-  const [formation, setFormation] = useState(loadFormationLocal)
-  const [positions, setPositions] = useState(loadPositionsLocal)
-  const [subLog, setSubLog]       = useState([])
-  const [minute, setMinute]       = useState(0)
+  const [activeTeam, setActiveTeam] = useState('ready-lilla')
+  const [tab, setTab]               = useState('kampdag')
+  const [teamData, setTeamData]     = useState({
+    'ready-lilla': emptyTeamState('ready-lilla'),
+    'ready-gronn': emptyTeamState('ready-gronn'),
+  })
+  const [subLogs, setSubLogs]       = useState({ 'ready-lilla': [], 'ready-gronn': [] })
+  const [minute, setMinute]         = useState(0)
   const [showResetConfirm, setShowResetConfirm] = useState(false)
 
-  // Load everything from cloud on startup
+  const team = TEAMS.find(t => t.id === activeTeam)
+  const { squad, formation, positions } = teamData[activeTeam]
+  const subLog = subLogs[activeTeam]
+
+  // Load both teams from cloud on startup
   useEffect(() => {
-    loadAllFromCloud().then(data => {
-      setSquad(data.squad)
-      setFormation(data.formation)
-      setPositions(data.positions)
+    TEAMS.forEach(t => {
+      loadAllFromCloud(t.id).then(data => {
+        setTeamData(prev => ({ ...prev, [t.id]: data }))
+      })
     })
   }, [])
 
+  function updateTeam(teamId, patch) {
+    setTeamData(prev => ({ ...prev, [teamId]: { ...prev[teamId], ...patch } }))
+  }
+
+  function switchTeam(teamId) {
+    setActiveTeam(teamId)
+    setShowResetConfirm(false)
+  }
+
+  // ── Squad ──────────────────────────────────────────────────────
+
   function handleSquadChange(newSquad) {
-    setSquad(newSquad)
-    saveSquad(newSquad)
+    saveSquad(activeTeam, newSquad)
     const ids = new Set(newSquad.map(p => p.id))
-    const cleaned = Object.fromEntries(
+    const cleanedPos = Object.fromEntries(
       Object.entries(positions).filter(([, pid]) => ids.has(pid))
     )
-    setPositions(cleaned)
-    savePositions(cleaned)
+    updateTeam(activeTeam, { squad: newSquad, positions: cleanedPos })
+    savePositions(activeTeam, cleanedPos)
   }
+
+  // ── Formation ─────────────────────────────────────────────────
 
   function handleFormationChange(f) {
     if (f === formation) return
-    setFormation(f)
-    saveFormation(f)
-    // Keep players on field – positions stay (different formations may share pos IDs)
-    // Only clear positions that don't exist in the new formation
+    saveFormation(activeTeam, f)
     const validPosIds = new Set(FORMATIONS[f].positions.map(p => p.id))
-    const cleaned = Object.fromEntries(
+    const cleanedPos  = Object.fromEntries(
       Object.entries(positions).filter(([posId]) => validPosIds.has(posId))
     )
-    setPositions(cleaned)
-    savePositions(cleaned)
+    updateTeam(activeTeam, { formation: f, positions: cleanedPos })
+    savePositions(activeTeam, cleanedPos)
   }
+
+  // ── Positions ─────────────────────────────────────────────────
 
   function handlePositionsChange(newPos) {
-    setPositions(newPos)
-    savePositions(newPos)
+    updateTeam(activeTeam, { positions: newPos })
+    savePositions(activeTeam, newPos)
   }
+
+  // ── Substitution ──────────────────────────────────────────────
 
   function handleSubstitution(inId, outId) {
-    setSubLog(log => [...log, { minute, inId, outId }])
+    setSubLogs(prev => ({
+      ...prev,
+      [activeTeam]: [...prev[activeTeam], { minute, inId, outId }],
+    }))
   }
 
+  // ── Reset ─────────────────────────────────────────────────────
+
   function handleReset() {
-    setPositions({})
-    savePositions({})
-    setSubLog([])
+    updateTeam(activeTeam, { positions: {} })
+    savePositions(activeTeam, {})
+    setSubLogs(prev => ({ ...prev, [activeTeam]: [] }))
     setShowResetConfirm(false)
   }
 
   return (
     <div className="flex flex-col min-h-svh bg-gray-950 text-white">
+
+      {/* ── Header + clock ── */}
       <header className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between gap-3 flex-wrap sticky top-0 z-10">
-        <h1 className="text-lg font-bold text-green-400 tracking-tight">Kampstøtte</h1>
+        <h1 className="text-lg font-bold text-white tracking-tight">Kampstøtte</h1>
         <MatchClock onMinute={setMinute} />
       </header>
 
-      <nav className="bg-gray-900 border-b border-gray-800 flex sticky top-[68px] z-10">
+      {/* ── Team selector ── */}
+      <div className="bg-gray-900 border-b border-gray-800 flex gap-2 px-4 py-2 sticky top-[68px] z-10">
+        {TEAMS.map(t => (
+          <button
+            key={t.id}
+            onClick={() => switchTeam(t.id)}
+            className={`flex-1 py-2 rounded-xl font-bold text-sm transition-colors ${
+              activeTeam === t.id
+                ? `${t.activeColor} text-white`
+                : 'bg-gray-800 text-gray-400'
+            }`}
+          >
+            Ready {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Tab bar ── */}
+      <nav className={`border-b border-gray-800 flex sticky top-[116px] z-10 ${
+        activeTeam === 'ready-lilla' ? 'bg-purple-950' : 'bg-green-950'
+      }`}>
         {TABS.map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
             className={`flex-1 py-3 text-sm font-bold transition-colors ${
               tab === t.id
-                ? 'text-green-400 border-b-2 border-green-400'
-                : 'text-gray-400'
+                ? `${team.textColor} border-b-2 ${activeTeam === 'ready-lilla' ? 'border-purple-400' : 'border-green-400'}`
+                : 'text-gray-500'
             }`}
           >
             {t.label}
@@ -97,6 +156,7 @@ export default function App() {
         ))}
       </nav>
 
+      {/* ── Content ── */}
       <main className="flex-1 overflow-y-auto pb-8">
         {tab === 'kampdag' && (
           <div className="p-3 max-w-sm mx-auto flex flex-col gap-4">
@@ -110,7 +170,7 @@ export default function App() {
                     onClick={() => handleFormationChange(f)}
                     className={`px-3 py-2 rounded-xl font-bold text-sm transition-colors ${
                       formation === f
-                        ? 'bg-green-600 text-white'
+                        ? (activeTeam === 'ready-lilla' ? 'bg-purple-600 text-white' : 'bg-green-600 text-white')
                         : 'bg-gray-800 text-gray-300'
                     }`}
                   >
@@ -126,7 +186,6 @@ export default function App() {
               </button>
             </div>
 
-            {/* Reset confirmation */}
             {showResetConfirm && (
               <div className="bg-red-950 border border-red-700 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
                 <span className="text-sm text-red-200">Tøm banen og nullstill byttelogg?</span>

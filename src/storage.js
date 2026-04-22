@@ -1,61 +1,64 @@
 import { loadFromCloud, saveToCloud } from './firebase'
 
-const KEYS = {
-  SQUAD:     'kampstotte_squad',
-  FORMATION: 'kampstotte_formation',
-  POSITIONS: 'kampstotte_positions',
+function keys(teamId) {
+  return {
+    SQUAD:     `kampstotte_${teamId}_squad`,
+    FORMATION: `kampstotte_${teamId}_formation`,
+    POSITIONS: `kampstotte_${teamId}_positions`,
+  }
 }
 
-// ── Local (localStorage) ───────────────────────────────────────
+// ── Local fallbacks ────────────────────────────────────────────
 
-export function loadSquadLocal() {
-  try { return JSON.parse(localStorage.getItem(KEYS.SQUAD)) ?? [] } catch { return [] }
+export function loadSquadLocal(teamId) {
+  try { return JSON.parse(localStorage.getItem(keys(teamId).SQUAD)) ?? [] } catch { return [] }
 }
-export function loadFormationLocal() {
-  return localStorage.getItem(KEYS.FORMATION) ?? '3-2-3'
+export function loadFormationLocal(teamId) {
+  return localStorage.getItem(keys(teamId).FORMATION) ?? '3-2-3'
 }
-export function loadPositionsLocal() {
-  try { return JSON.parse(localStorage.getItem(KEYS.POSITIONS)) ?? {} } catch { return {} }
-}
-
-function cacheLocally(data) {
-  if (data.squad     !== undefined) localStorage.setItem(KEYS.SQUAD,     JSON.stringify(data.squad))
-  if (data.formation !== undefined) localStorage.setItem(KEYS.FORMATION, data.formation)
-  if (data.positions !== undefined) localStorage.setItem(KEYS.POSITIONS, JSON.stringify(data.positions))
+export function loadPositionsLocal(teamId) {
+  try { return JSON.parse(localStorage.getItem(keys(teamId).POSITIONS)) ?? {} } catch { return {} }
 }
 
-// ── Cloud load (merges with local fallback) ────────────────────
+function cacheLocally(teamId, data) {
+  const k = keys(teamId)
+  if (data.squad     !== undefined) localStorage.setItem(k.SQUAD,     JSON.stringify(data.squad))
+  if (data.formation !== undefined) localStorage.setItem(k.FORMATION, data.formation)
+  if (data.positions !== undefined) localStorage.setItem(k.POSITIONS, JSON.stringify(data.positions))
+}
 
-export async function loadAllFromCloud() {
-  const data = await loadFromCloud()
+// ── Cloud load ─────────────────────────────────────────────────
+
+export async function loadAllFromCloud(teamId) {
+  const data = await loadFromCloud(teamId)
   if (data) {
-    cacheLocally(data)
+    cacheLocally(teamId, data)
     return {
-      squad:     data.squad     ?? loadSquadLocal(),
-      formation: data.formation ?? loadFormationLocal(),
-      positions: data.positions ?? loadPositionsLocal(),
+      squad:     data.squad     ?? loadSquadLocal(teamId),
+      formation: data.formation ?? loadFormationLocal(teamId),
+      positions: data.positions ?? loadPositionsLocal(teamId),
     }
   }
   return {
-    squad:     loadSquadLocal(),
-    formation: loadFormationLocal(),
-    positions: loadPositionsLocal(),
+    squad:     loadSquadLocal(teamId),
+    formation: loadFormationLocal(teamId),
+    positions: loadPositionsLocal(teamId),
   }
 }
 
-// ── Individual save (local + cloud) ───────────────────────────
+// ── Save ───────────────────────────────────────────────────────
 
-export function saveSquad(squad) {
-  localStorage.setItem(KEYS.SQUAD, JSON.stringify(squad))
-  saveToCloud({ squad })
+export function saveSquad(teamId, squad) {
+  localStorage.setItem(keys(teamId).SQUAD, JSON.stringify(squad))
+  saveToCloud(teamId, { squad })
 }
 
-export function saveFormation(formation) {
-  localStorage.setItem(KEYS.FORMATION, formation)
-  saveToCloud({ formation })
+export function saveFormation(teamId, formation) {
+  localStorage.setItem(keys(teamId).FORMATION, formation)
+  saveToCloud(teamId, { formation })
 }
 
-export function savePositions(positions) {
-  localStorage.setItem(KEYS.POSITIONS, JSON.stringify(positions))
-  saveToCloud({ positions })
+export function savePositions(teamId, positions) {
+  localStorage.setItem(keys(teamId).POSITIONS, JSON.stringify(positions))
+  saveToCloud(teamId, { positions })
 }
