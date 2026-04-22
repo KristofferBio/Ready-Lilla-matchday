@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState } from 'react'
 import { FORMATIONS } from '../formations'
 
 export default function FormationView({
@@ -10,24 +10,26 @@ export default function FormationView({
 }) {
   const svgRef = useRef(null)
 
-  // Always-current refs so event handlers never use stale closures
-  const positionsRef       = useRef(positions)
-  positionsRef.current     = positions
-  const formationRef       = useRef(formation)
-  formationRef.current     = formation
-  const onPosChangeRef     = useRef(onPositionsChange)
-  onPosChangeRef.current   = onPositionsChange
-  const onSubRef           = useRef(onSubstitution)
-  onSubRef.current         = onSubstitution
+  // Always-current refs – event handlers never use stale closures
+  const positionsRef     = useRef(positions)
+  positionsRef.current   = positions
+  const formationRef     = useRef(formation)
+  formationRef.current   = formation
+  const onPosChangeRef   = useRef(onPositionsChange)
+  onPosChangeRef.current = onPositionsChange
+  const onSubRef         = useRef(onSubstitution)
+  onSubRef.current       = onSubstitution
 
-  const [fieldDragging, setFieldDragging] = useState(null) // { playerId, source: posId }
-  const [benchDragging, setBenchDragging] = useState(null) // playerId
-  const [dragOver, setDragOver]           = useState(null) // posId | 'bench'
+  // Touch drag tracking via refs (no async state delay)
+  const activeTouchDrag  = useRef(null) // { type: 'bench'|'field', playerId, source? }
+  const touchListeners   = useRef(null) // { move, end } – for cleanup
 
-  const fieldDraggingRef   = useRef(null)
-  fieldDraggingRef.current = fieldDragging
-  const benchDraggingRef   = useRef(null)
-  benchDraggingRef.current = benchDragging
+  // Mouse drag state (for desktop HTML5 DnD)
+  const [fieldDragging, setFieldDragging] = useState(null)
+  const [benchDragging, setBenchDragging] = useState(null)
+
+  // Visual feedback only
+  const [dragOver, setDragOver] = useState(null)
 
   const formDef    = FORMATIONS[formation]
   const playerById = Object.fromEntries(squad.map(p => [p.id, p]))
@@ -55,107 +57,114 @@ export default function FormationView({
     return clientY > svgRef.current.getBoundingClientRect().bottom
   }
 
-  // ── Shared apply functions (use refs → always current) ─────────
+  // ── Apply helpers (always use refs) ───────────────────────────
 
   function applyBenchDrop(posId, inId) {
-    const pos   = positionsRef.current
-    const outId = pos[posId]
+    const pos    = positionsRef.current
+    const outId  = pos[posId]
     const newPos = { ...pos, [posId]: inId }
     onPosChangeRef.current(newPos)
     if (outId) onSubRef.current(inId, outId)
-    setBenchDragging(null)
-    setDragOver(null)
   }
 
-  function applyFieldDrop(posId, drag) {
-    if (posId === drag.source) { setFieldDragging(null); setDragOver(null); return }
+  function applyFieldDrop(posId, playerId, source) {
+    if (posId === source) return
     const newPos   = { ...positionsRef.current }
     const existing = newPos[posId]
-    if (existing) { newPos[drag.source] = existing } else { delete newPos[drag.source] }
-    newPos[posId] = drag.playerId
+    if (existing) { newPos[source] = existing } else { delete newPos[source] }
+    newPos[posId] = playerId
     onPosChangeRef.current(newPos)
-    setFieldDragging(null)
-    setDragOver(null)
   }
 
   function applyFieldToBench(source) {
     const newPos = { ...positionsRef.current }
     delete newPos[source]
     onPosChangeRef.current(newPos)
-    setFieldDragging(null)
-    setDragOver(null)
   }
 
-  // ── Non-passive document touch listeners for BENCH drag ────────
-  useEffect(() => {
-    if (!benchDragging) return
+  // ── Touch: attach non-passive listeners SYNCHRONOUSLY ─────────
+  // This avoids the useEffect timing gap where touchmove fires
+  // passively before React re-renders and the effect runs.
 
-    function onMove(e) {
+  function removeTouchListeners() {
+    if (!touchListeners.current) return
+    document.removeEventListener('touchmove', touchListeners.current.move)
+    document.removeEventListener('touchend',  touchListeners.current.end)
+    touchListeners.current = null
+  }
+
+  function attachTouchListeners(moveHandler, endHandler) {
+    removeTouchListeners()
+    document.addEventListener('touchmove', moveHandler, { passive: false })
+    document.addEventListener('touchend',  endHandler)
+    touchListeners.current = { move: moveHandler, end: endHandler }
+  }
+
+  function onBenchTouchStart(playerId) {
+    activeTouchDrag.current = { type: 'bench', playerId }
+    setBenchDragging(playerId) // for visual state
+
+    function move(e) {
       e.preventDefault()
-      const { clientX, clientY } = e.touches[0]
-      setDragOver(findPosAtPoint(clientX, clientY))
+      setDragOver(findPosAtPoint(e.touches[0].clientX, e.touches[0].clientY))
     }
 
-    function onEnd(e) {
+    function end(e) {
       const { clientX, clientY } = e.changedTouches[0]
-      const posId = findPosAtPoint(clientX, clientY)
-      if (posId) {
-        applyBenchDrop(posId, benchDraggingRef.current)
-      } else {
-        setBenchDragging(null)
-        setDragOver(null)
+      const drag = activeTouchDrag.current
+      if (drag) {
+        const posId = findPosAtPoint(clientX, clientY)
+        if (posId) applyBenchDrop(posId, drag.playerId)
       }
+      activeTouchDrag.current = null
+      setBenchDragging(null)
+      setDragOver(null)
+      removeTouchListeners()
     }
 
-    document.addEventListener('touchmove', onMove, { passive: false })
-    document.addEventListener('touchend',  onEnd)
-    return () => {
-      document.removeEventListener('touchmove', onMove)
-      document.removeEventListener('touchend',  onEnd)
-    }
-  }, [benchDragging])
+    attachTouchListeners(move, end)
+  }
 
-  // ── Non-passive document touch listeners for FIELD drag ────────
-  useEffect(() => {
-    if (!fieldDragging) return
+  function onFieldTouchStart(playerId, source) {
+    activeTouchDrag.current = { type: 'field', playerId, source }
 
-    function onMove(e) {
+    function move(e) {
       e.preventDefault()
       const { clientX, clientY } = e.touches[0]
       setDragOver(isBelowField(clientY) ? 'bench' : findPosAtPoint(clientX, clientY))
     }
 
-    function onEnd(e) {
+    function end(e) {
       const { clientX, clientY } = e.changedTouches[0]
-      const drag = fieldDraggingRef.current
-      if (!drag) return
-      if (isBelowField(clientY)) {
-        applyFieldToBench(drag.source)
-      } else {
-        const posId = findPosAtPoint(clientX, clientY)
-        if (posId) applyFieldDrop(posId, drag)
-        else { setFieldDragging(null); setDragOver(null) }
+      const drag = activeTouchDrag.current
+      if (drag) {
+        if (isBelowField(clientY)) {
+          applyFieldToBench(drag.source)
+        } else {
+          const posId = findPosAtPoint(clientX, clientY)
+          if (posId) applyFieldDrop(posId, drag.playerId, drag.source)
+        }
       }
+      activeTouchDrag.current = null
+      setDragOver(null)
+      removeTouchListeners()
     }
 
-    document.addEventListener('touchmove', onMove, { passive: false })
-    document.addEventListener('touchend',  onEnd)
-    return () => {
-      document.removeEventListener('touchmove', onMove)
-      document.removeEventListener('touchend',  onEnd)
-    }
-  }, [fieldDragging?.playerId, fieldDragging?.source])
+    attachTouchListeners(move, end)
+  }
 
-  // ── Mouse drop handlers ────────────────────────────────────────
+  // ── Mouse drop handlers (desktop) ─────────────────────────────
 
   function onFieldMouseDrop(posId) {
-    if (benchDragging) { applyBenchDrop(posId, benchDragging); return }
-    if (fieldDragging)   applyFieldDrop(posId, fieldDragging)
+    if (benchDragging) { applyBenchDrop(posId, benchDragging); setBenchDragging(null) }
+    else if (fieldDragging) { applyFieldDrop(posId, fieldDragging.playerId, fieldDragging.source); setFieldDragging(null) }
+    setDragOver(null)
   }
 
   function onBenchZoneDrop() {
-    if (fieldDragging) applyFieldToBench(fieldDragging.source)
-    else { setBenchDragging(null); setDragOver(null) }
+    if (fieldDragging) { applyFieldToBench(fieldDragging.source); setFieldDragging(null) }
+    setBenchDragging(null)
+    setDragOver(null)
   }
 
   // ── Render ─────────────────────────────────────────────────────
@@ -165,7 +174,6 @@ export default function FormationView({
   return (
     <div className="flex flex-col items-center gap-3 select-none w-full">
 
-      {/* ── Football field SVG ── */}
       <svg
         ref={svgRef}
         viewBox={`0 0 ${W} ${H}`}
@@ -189,7 +197,6 @@ export default function FormationView({
               onDragLeave={() => setDragOver(null)}
               onDrop={() => onFieldMouseDrop(pos.id)}
             >
-              {/* Drop zone */}
               <circle
                 cx={cx} cy={cy} r={28}
                 fill={isOver ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.2)'}
@@ -197,7 +204,6 @@ export default function FormationView({
                 strokeWidth="2"
                 strokeDasharray={player ? '0' : '5,3'}
               />
-
               {player ? (
                 <>
                   <circle
@@ -211,7 +217,7 @@ export default function FormationView({
                       e.dataTransfer.effectAllowed = 'move'
                     }}
                     onDragEnd={() => { setFieldDragging(null); setDragOver(null) }}
-                    onTouchStart={() => setFieldDragging({ playerId, source: pos.id })}
+                    onTouchStart={() => onFieldTouchStart(playerId, pos.id)}
                     style={{ cursor: 'grab' }}
                   />
                   <text x={cx} y={cy - 7} textAnchor="middle" dominantBaseline="middle"
@@ -234,12 +240,9 @@ export default function FormationView({
         })}
       </svg>
 
-      {/* ── Send-til-benk drop zone ── */}
       <div
         className={`w-full text-center text-xs py-2 rounded-lg transition-colors ${
-          dragOver === 'bench'
-            ? 'bg-yellow-400 text-black font-bold'
-            : 'bg-gray-800 text-gray-400'
+          dragOver === 'bench' ? 'bg-yellow-400 text-black font-bold' : 'bg-gray-800 text-gray-400'
         }`}
         onDragOver={e => { e.preventDefault(); setDragOver('bench') }}
         onDragLeave={() => setDragOver(null)}
@@ -248,7 +251,6 @@ export default function FormationView({
         Dra hit for å sende til benk
       </div>
 
-      {/* ── Bench strip ── */}
       <div className="w-full">
         <p className="text-xs uppercase tracking-widest text-gray-500 mb-2 font-bold">
           Benk ({bench.length})
@@ -266,7 +268,7 @@ export default function FormationView({
                   e.dataTransfer.effectAllowed = 'move'
                 }}
                 onDragEnd={() => { setBenchDragging(null); setDragOver(null) }}
-                onTouchStart={() => setBenchDragging(player.id)}
+                onTouchStart={() => onBenchTouchStart(player.id)}
                 className="flex items-center gap-2 px-3 py-2 rounded-xl cursor-grab active:cursor-grabbing bg-gray-800 border border-gray-700 text-white"
               >
                 <span className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold text-sm shrink-0">
