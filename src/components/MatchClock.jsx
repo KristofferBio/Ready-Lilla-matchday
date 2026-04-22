@@ -12,6 +12,10 @@ function initFromStorage() {
   const elapsed = saved.running && saved.virtualStart != null
     ? Math.max(0, Math.floor((Date.now() - saved.virtualStart) / 1000))
     : saved.elapsed ?? 0
+  if (elapsed >= 50 * 60) {
+    localStorage.removeItem(CLOCK_KEY)
+    return { running: false, elapsed: 0 }
+  }
   return { running: saved.running ?? false, elapsed }
 }
 
@@ -33,6 +37,15 @@ export default function MatchClock({ onMinute }) {
       localStorage.setItem(CLOCK_KEY, JSON.stringify({ running: true, virtualStart: startRef.current }))
       intervalRef.current = setInterval(() => {
         const secs = Math.floor((Date.now() - startRef.current) / 1000)
+        if (secs >= 50 * 60) {
+          clearInterval(intervalRef.current)
+          setRunning(false)
+          setElapsed(0)
+          elapsedRef.current = 0
+          onMinute(0)
+          localStorage.removeItem(CLOCK_KEY)
+          return
+        }
         elapsedRef.current = secs
         setElapsed(secs)
         onMinute(Math.floor(secs / 60))
