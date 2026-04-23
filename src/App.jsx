@@ -40,7 +40,6 @@ export default function App() {
     'ready-gronn': emptyTeamState('ready-gronn'),
   })
   const [minute, setMinute]         = useState(0)
-  const [showResetConfirm, setShowResetConfirm] = useState(null) // null | 'oppsett' | 'logg'
 
   const team = TEAMS.find(t => t.id === activeTeam)
   const { squad, formation, positions, subLog, playMinutes, fieldStartMinute } = teamData[activeTeam]
@@ -60,7 +59,6 @@ export default function App() {
 
   function switchTeam(teamId) {
     setActiveTeam(teamId)
-    setShowResetConfirm(null)
   }
 
   // ── Squad ──────────────────────────────────────────────────────
@@ -129,13 +127,11 @@ export default function App() {
     updateTeam(activeTeam, { positions: {}, playMinutes: newPlayMinutes, fieldStartMinute: {} })
     savePositions(activeTeam, {})
     savePlayTime(activeTeam, { playMinutes: newPlayMinutes, fieldStartMinute: {} })
-    setShowResetConfirm(null)
   }
 
   function handleResetLogg() {
     updateTeam(activeTeam, { subLog: [] })
     saveSubLog(activeTeam, [])
-    setShowResetConfirm(null)
   }
 
   return (
@@ -188,55 +184,22 @@ export default function App() {
         {tab === 'kampdag' && (
           <div className="p-3 max-w-sm mx-auto flex flex-col gap-4">
 
-            {/* Formation selector + reset */}
-            <div className="flex items-center gap-2">
-              <div className="flex gap-2 flex-1">
-                {FORMATION_KEYS.map(f => (
-                  <button
-                    key={f}
-                    onClick={() => handleFormationChange(f)}
-                    className={`px-3 py-2 rounded-xl font-bold text-sm transition-colors ${
-                      formation === f
-                        ? (activeTeam === 'ready-lilla' ? 'bg-purple-600 text-white' : 'bg-green-600 text-white')
-                        : 'bg-gray-800 text-gray-300'
-                    }`}
-                  >
-                    {f}
-                  </button>
-                ))}
-              </div>
-              <div className="flex gap-2">
+            {/* Formation selector */}
+            <div className="flex gap-2">
+              {FORMATION_KEYS.map(f => (
                 <button
-                  onClick={() => setShowResetConfirm('logg')}
-                  className="px-3 py-2 rounded-xl bg-gray-800 text-gray-400 text-sm font-bold"
+                  key={f}
+                  onClick={() => handleFormationChange(f)}
+                  className={`px-3 py-2 rounded-xl font-bold text-sm transition-colors ${
+                    formation === f
+                      ? (activeTeam === 'ready-lilla' ? 'bg-purple-600 text-white' : 'bg-green-600 text-white')
+                      : 'bg-gray-800 text-gray-300'
+                  }`}
                 >
-                  Nullstill logg
+                  {f}
                 </button>
-                <button
-                  onClick={() => setShowResetConfirm('oppsett')}
-                  className="px-3 py-2 rounded-xl bg-gray-800 text-gray-400 text-sm font-bold"
-                >
-                  Nullstill oppsett
-                </button>
-              </div>
+              ))}
             </div>
-
-            {showResetConfirm && (
-              <div className="bg-red-950 border border-red-700 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
-                <span className="text-sm text-red-200">
-                  {showResetConfirm === 'logg' ? 'Nullstill bytteloggen?' : 'Tøm banen?'}
-                </span>
-                <div className="flex gap-2">
-                  <button
-                    onClick={showResetConfirm === 'logg' ? handleResetLogg : handleResetOppsett}
-                    className="bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-bold"
-                  >
-                    Ja
-                  </button>
-                  <button onClick={() => setShowResetConfirm(null)} className="bg-gray-700 text-white px-3 py-2 rounded-lg text-sm">Avbryt</button>
-                </div>
-              </div>
-            )}
 
             <FormationView
               formation={formation}
