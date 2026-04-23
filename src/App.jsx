@@ -135,7 +135,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex flex-col min-h-svh bg-gray-950 text-white">
+    <div className="flex flex-col h-svh bg-gray-950 text-white">
 
       {/* ── Header + clock ── */}
       <header className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between gap-3 flex-wrap sticky top-0 z-10">
