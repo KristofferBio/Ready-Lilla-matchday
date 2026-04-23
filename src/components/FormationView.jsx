@@ -196,8 +196,36 @@ export default function FormationView({
 
   const W = 340, H = 320
 
+  const ConfirmDialog = ({ onConfirm }) => (
+    <div className="bg-red-950 border border-red-700 rounded-xl px-4 py-3 flex items-center justify-between gap-3 w-full">
+      <span className="text-sm text-red-200">
+        {confirmReset === 'logg' ? 'Nullstill bytteloggen?' : 'Tøm kampoppsettet?'}
+      </span>
+      <div className="flex gap-2">
+        <button onClick={() => { onConfirm(); setConfirmReset(null) }}
+          className="bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-bold">Ja</button>
+        <button onClick={() => setConfirmReset(null)}
+          className="bg-gray-700 text-white px-3 py-2 rounded-lg text-sm">Avbryt</button>
+      </div>
+    </div>
+  )
+
   return (
     <div className="flex flex-col items-center gap-3 select-none w-full">
+
+      <div
+        className={`w-full text-center text-xs py-2 rounded-lg transition-colors cursor-pointer select-none ${
+          dragOver === 'bench' ? 'bg-yellow-400 text-black font-bold' : 'bg-yellow-500 text-black hover:bg-yellow-400'
+        }`}
+        onDragOver={e => { e.preventDefault(); setDragOver('bench') }}
+        onDragLeave={() => setDragOver(null)}
+        onDrop={onBenchZoneDrop}
+        onClick={() => setConfirmReset('oppsett')}
+      >
+        Nullstill kampoppsett
+      </div>
+
+      {confirmReset === 'oppsett' && <ConfirmDialog onConfirm={onResetOppsett} />}
 
       <svg
         ref={svgRef}
@@ -274,18 +302,6 @@ export default function FormationView({
         })}
       </svg>
 
-      <div
-        className={`w-full text-center text-xs py-2 rounded-lg transition-colors cursor-pointer select-none ${
-          dragOver === 'bench' ? 'bg-yellow-400 text-black font-bold' : 'bg-yellow-500 text-black hover:bg-yellow-400'
-        }`}
-        onDragOver={e => { e.preventDefault(); setDragOver('bench') }}
-        onDragLeave={() => setDragOver(null)}
-        onDrop={onBenchZoneDrop}
-        onClick={() => setConfirmReset('oppsett')}
-      >
-        Nullstill kampoppsett
-      </div>
-
       <div className="w-full">
         <p className="text-xs uppercase tracking-widest text-gray-500 mb-2 font-bold">
           Benk ({bench.length})
@@ -326,23 +342,7 @@ export default function FormationView({
         Nullstill byttelogg
       </div>
 
-      {confirmReset && (
-        <div className="bg-red-950 border border-red-700 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
-          <span className="text-sm text-red-200">
-            {confirmReset === 'logg' ? 'Nullstill bytteloggen?' : 'Tøm kampoppsettet?'}
-          </span>
-          <div className="flex gap-2">
-            <button
-              onClick={() => { confirmReset === 'logg' ? onResetLogg() : onResetOppsett(); setConfirmReset(null) }}
-              className="bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-bold"
-            >Ja</button>
-            <button
-              onClick={() => setConfirmReset(null)}
-              className="bg-gray-700 text-white px-3 py-2 rounded-lg text-sm"
-            >Avbryt</button>
-          </div>
-        </div>
-      )}
+      {confirmReset === 'logg' && <ConfirmDialog onConfirm={onResetLogg} />}
     </div>
   )
 }
