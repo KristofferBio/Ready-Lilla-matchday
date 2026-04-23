@@ -6,6 +6,9 @@ export default function FormationView({
   positions,
   squad,
   subLog,
+  minute,
+  playMinutes,
+  fieldStartMinute,
   onPositionsChange,
   onSubstitution,
 }) {
@@ -48,6 +51,12 @@ export default function FormationView({
     if (bi === undefined) return 1
     return ai - bi  // earlier sub-off = been on bench longer = leftmost
   })
+
+  function playerTime(id, isOnField) {
+    const acc = (playMinutes ?? {})[id] ?? 0
+    if (isOnField) return acc + ((minute ?? 0) - ((fieldStartMinute ?? {})[id] ?? (minute ?? 0)))
+    return acc
+  }
 
   // ── Coordinate helpers ─────────────────────────────────────────
 
@@ -241,6 +250,15 @@ export default function FormationView({
                     fontSize="9.5" fill="#bfdbfe" style={{ pointerEvents: 'none' }}>
                     {player.name.length > 8 ? player.name.slice(0, 7) + '.' : player.name}
                   </text>
+                  {(() => { const t = playerTime(playerId, true); return t > 0 && (
+                    <g style={{ pointerEvents: 'none' }}>
+                      <rect x={cx + 10} y={cy - 36} width={24} height={13} rx={6} fill="rgba(0,0,0,0.75)" />
+                      <text x={cx + 22} y={cy - 29} textAnchor="middle" dominantBaseline="middle"
+                        fontSize="8" fontWeight="bold" fill="#86efac">
+                        {t}m
+                      </text>
+                    </g>
+                  )})()}
                 </>
               ) : (
                 <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
@@ -288,6 +306,9 @@ export default function FormationView({
                   {player.number}
                 </span>
                 <span className="font-medium text-sm">{player.name}</span>
+                {(() => { const t = playerTime(player.id, false); return t > 0 && (
+                  <span className="ml-auto text-xs font-bold text-green-400">{t}m</span>
+                )})()}
               </div>
             ))}
           </div>

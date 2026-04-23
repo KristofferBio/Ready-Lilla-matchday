@@ -6,8 +6,8 @@ import SquadManager from './components/SquadManager'
 import { FORMATION_KEYS, FORMATIONS } from './formations'
 import {
   loadAllFromCloud,
-  loadSquadLocal, loadFormationLocal, loadPositionsLocal, loadSubLogLocal,
-  saveSquad, saveFormation, savePositions, saveSubLog,
+  loadSquadLocal, loadFormationLocal, loadPositionsLocal, loadSubLogLocal, loadPlayTimeLocal,
+  saveSquad, saveFormation, savePositions, saveSubLog, savePlayTime,
 } from './storage'
 
 const TEAMS = [
@@ -21,11 +21,14 @@ const TABS = [
 ]
 
 function emptyTeamState(teamId) {
+  const pt = loadPlayTimeLocal(teamId)
   return {
-    squad:     loadSquadLocal(teamId),
-    formation: loadFormationLocal(teamId),
-    positions: loadPositionsLocal(teamId),
-    subLog:    loadSubLogLocal(teamId),
+    squad:            loadSquadLocal(teamId),
+    formation:        loadFormationLocal(teamId),
+    positions:        loadPositionsLocal(teamId),
+    subLog:           loadSubLogLocal(teamId),
+    playMinutes:      pt.playMinutes,
+    fieldStartMinute: pt.fieldStartMinute,
   }
 }
 
@@ -40,7 +43,7 @@ export default function App() {
   const [showResetConfirm, setShowResetConfirm] = useState(null) // null | 'oppsett' | 'logg'
 
   const team = TEAMS.find(t => t.id === activeTeam)
-  const { squad, formation, positions, subLog } = teamData[activeTeam]
+  const { squad, formation, positions, subLog, playMinutes, fieldStartMinute } = teamData[activeTeam]
 
   // Load both teams from cloud on startup
   useEffect(() => {
@@ -88,8 +91,24 @@ export default function App() {
   // ── Positions ─────────────────────────────────────────────────
 
   function handlePositionsChange(newPos) {
-    updateTeam(activeTeam, { positions: newPos })
+    const oldOnField = new Set(Object.values(positions))
+    const newOnField = new Set(Object.values(newPos))
+    const newPlayMinutes      = { ...playMinutes }
+    const newFieldStartMinute = { ...fieldStartMinute }
+
+    for (const id of oldOnField) {
+      if (!newOnField.has(id)) {
+        newPlayMinutes[id] = (newPlayMinutes[id] ?? 0) + (minute - (newFieldStartMinute[id] ?? minute))
+        delete newFieldStartMinute[id]
+      }
+    }
+    for (const id of newOnField) {
+      if (!oldOnField.has(id)) newFieldStartMinute[id] = minute
+    }
+
+    updateTeam(activeTeam, { positions: newPos, playMinutes: newPlayMinutes, fieldStartMinute: newFieldStartMinute })
     savePositions(activeTeam, newPos)
+    savePlayTime(activeTeam, { playMinutes: newPlayMinutes, fieldStartMinute: newFieldStartMinute })
   }
 
   // ── Substitution ──────────────────────────────────────────────
@@ -103,8 +122,13 @@ export default function App() {
   // ── Reset ─────────────────────────────────────────────────────
 
   function handleResetOppsett() {
-    updateTeam(activeTeam, { positions: {} })
+    const newPlayMinutes = { ...playMinutes }
+    for (const id of Object.values(positions)) {
+      newPlayMinutes[id] = (newPlayMinutes[id] ?? 0) + (minute - (fieldStartMinute[id] ?? minute))
+    }
+    updateTeam(activeTeam, { positions: {}, playMinutes: newPlayMinutes, fieldStartMinute: {} })
     savePositions(activeTeam, {})
+    savePlayTime(activeTeam, { playMinutes: newPlayMinutes, fieldStartMinute: {} })
     setShowResetConfirm(null)
   }
 
@@ -219,6 +243,9 @@ export default function App() {
               positions={positions}
               squad={squad}
               subLog={subLog}
+              minute={minute}
+              playMinutes={playMinutes}
+              fieldStartMinute={fieldStartMinute}
               onPositionsChange={handlePositionsChange}
               onSubstitution={handleSubstitution}
             />
