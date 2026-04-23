@@ -11,6 +11,8 @@ export default function FormationView({
   fieldStartMinute,
   onPositionsChange,
   onSubstitution,
+  onResetOppsett,
+  onResetLogg,
 }) {
   const svgRef = useRef(null)
 
@@ -34,6 +36,7 @@ export default function FormationView({
 
   // Visual feedback only
   const [dragOver, setDragOver] = useState(null)
+  const [confirmReset, setConfirmReset] = useState(null) // null | 'oppsett' | 'logg'
 
   const formDef    = FORMATIONS[formation]
   const playerById = Object.fromEntries(squad.map(p => [p.id, p]))
@@ -272,14 +275,15 @@ export default function FormationView({
       </svg>
 
       <div
-        className={`w-full text-center text-xs py-2 rounded-lg transition-colors ${
-          dragOver === 'bench' ? 'bg-yellow-400 text-black font-bold' : 'bg-gray-800 text-gray-400'
+        className={`w-full text-center text-xs py-2 rounded-lg transition-colors cursor-pointer select-none ${
+          dragOver === 'bench' ? 'bg-yellow-400 text-black font-bold' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
         }`}
         onDragOver={e => { e.preventDefault(); setDragOver('bench') }}
         onDragLeave={() => setDragOver(null)}
         onDrop={onBenchZoneDrop}
+        onClick={() => setConfirmReset('oppsett')}
       >
-        Dra hit for å sende til benk
+        Nullstill kampoppsett
       </div>
 
       <div className="w-full">
@@ -314,6 +318,31 @@ export default function FormationView({
           </div>
         )}
       </div>
+
+      <div
+        className="w-full text-center text-xs py-2 rounded-lg cursor-pointer select-none bg-gray-800 text-gray-400 hover:bg-gray-700 transition-colors"
+        onClick={() => setConfirmReset('logg')}
+      >
+        Nullstill byttelogg
+      </div>
+
+      {confirmReset && (
+        <div className="bg-red-950 border border-red-700 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+          <span className="text-sm text-red-200">
+            {confirmReset === 'logg' ? 'Nullstill bytteloggen?' : 'Tøm kampoppsettet?'}
+          </span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => { confirmReset === 'logg' ? onResetLogg() : onResetOppsett(); setConfirmReset(null) }}
+              className="bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-bold"
+            >Ja</button>
+            <button
+              onClick={() => setConfirmReset(null)}
+              className="bg-gray-700 text-white px-3 py-2 rounded-lg text-sm"
+            >Avbryt</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

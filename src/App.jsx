@@ -211,6 +211,8 @@ export default function App() {
               fieldStartMinute={fieldStartMinute}
               onPositionsChange={handlePositionsChange}
               onSubstitution={handleSubstitution}
+              onResetOppsett={handleResetOppsett}
+              onResetLogg={handleResetLogg}
             />
 
             <SubLog log={subLog} squad={squad} />
