@@ -276,7 +276,7 @@ export default function FormationView({
 
       <div
         className={`w-full text-center text-xs py-2 rounded-lg transition-colors cursor-pointer select-none ${
-          dragOver === 'bench' ? 'bg-yellow-400 text-black font-bold' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+          dragOver === 'bench' ? 'bg-yellow-400 text-black font-bold' : 'bg-yellow-500 text-black hover:bg-yellow-400'
         }`}
         onDragOver={e => { e.preventDefault(); setDragOver('bench') }}
         onDragLeave={() => setDragOver(null)}
@@ -320,7 +320,7 @@ export default function FormationView({
       </div>
 
       <div
-        className="w-full text-center text-xs py-2 rounded-lg cursor-pointer select-none bg-gray-800 text-gray-400 hover:bg-gray-700 transition-colors"
+        className="w-full text-center text-xs py-2 rounded-lg cursor-pointer select-none bg-yellow-500 text-black hover:bg-yellow-400 transition-colors"
         onClick={() => setConfirmReset('logg')}
       >
         Nullstill byttelogg
