@@ -137,50 +137,50 @@ export default function App() {
   return (
     <div className="flex flex-col h-svh bg-gray-950 text-white">
 
-      {/* ── Header + clock ── */}
-      <header className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between gap-3 flex-wrap sticky top-0 z-10">
-        <h1 className="text-lg font-bold text-white tracking-tight">Kampstøtte</h1>
+      {/* ── Clock – always visible ── */}
+      <div className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex justify-center">
         <MatchClock onMinute={setMinute} />
-      </header>
-
-      {/* ── Team selector ── */}
-      <div className="bg-gray-900 border-b border-gray-800 flex gap-2 px-4 py-2 sticky top-[68px] z-10">
-        {TEAMS.map(t => (
-          <button
-            key={t.id}
-            onClick={() => switchTeam(t.id)}
-            className={`flex-1 py-2 rounded-xl font-bold text-sm transition-colors ${
-              activeTeam === t.id
-                ? `${t.activeColor} text-white`
-                : 'bg-gray-800 text-gray-400'
-            }`}
-          >
-            Ready {t.label}
-          </button>
-        ))}
       </div>
 
-      {/* ── Tab bar ── */}
-      <nav className={`border-b border-gray-800 flex sticky top-[116px] z-10 ${
-        activeTeam === 'ready-lilla' ? 'bg-purple-950' : 'bg-green-950'
-      }`}>
-        {TABS.map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`flex-1 py-3 text-sm font-bold transition-colors ${
-              tab === t.id
-                ? `${team.textColor} border-b-2 ${activeTeam === 'ready-lilla' ? 'border-purple-400' : 'border-green-400'}`
-                : 'text-gray-500'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </nav>
-
-      {/* ── Content ── */}
+      {/* ── Scrollable content ── */}
       <main className="flex-1 overflow-y-auto pb-8">
+
+        {/* ── Team selector (scrolls away) ── */}
+        <div className="bg-gray-900 border-b border-gray-800 flex gap-2 px-4 py-2">
+          {TEAMS.map(t => (
+            <button
+              key={t.id}
+              onClick={() => switchTeam(t.id)}
+              className={`flex-1 py-2 rounded-xl font-bold text-sm transition-colors ${
+                activeTeam === t.id
+                  ? `${t.activeColor} text-white`
+                  : 'bg-gray-800 text-gray-400'
+              }`}
+            >
+              Ready {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* ── Tab bar (scrolls away) ── */}
+        <nav className={`border-b border-gray-800 flex ${
+          activeTeam === 'ready-lilla' ? 'bg-purple-950' : 'bg-green-950'
+        }`}>
+          {TABS.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`flex-1 py-3 text-sm font-bold transition-colors ${
+                tab === t.id
+                  ? `${team.textColor} border-b-2 ${activeTeam === 'ready-lilla' ? 'border-purple-400' : 'border-green-400'}`
+                  : 'text-gray-500'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
+
         {tab === 'kampdag' && (
           <div className="p-3 max-w-sm mx-auto flex flex-col gap-4">
 
