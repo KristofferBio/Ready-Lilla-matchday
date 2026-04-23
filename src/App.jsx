@@ -37,7 +37,7 @@ export default function App() {
     'ready-gronn': emptyTeamState('ready-gronn'),
   })
   const [minute, setMinute]         = useState(0)
-  const [showResetConfirm, setShowResetConfirm] = useState(false)
+  const [showResetConfirm, setShowResetConfirm] = useState(null) // null | 'oppsett' | 'logg'
 
   const team = TEAMS.find(t => t.id === activeTeam)
   const { squad, formation, positions, subLog } = teamData[activeTeam]
@@ -57,7 +57,7 @@ export default function App() {
 
   function switchTeam(teamId) {
     setActiveTeam(teamId)
-    setShowResetConfirm(false)
+    setShowResetConfirm(null)
   }
 
   // ── Squad ──────────────────────────────────────────────────────
@@ -102,11 +102,16 @@ export default function App() {
 
   // ── Reset ─────────────────────────────────────────────────────
 
-  function handleReset() {
-    updateTeam(activeTeam, { positions: {}, subLog: [] })
+  function handleResetOppsett() {
+    updateTeam(activeTeam, { positions: {} })
     savePositions(activeTeam, {})
+    setShowResetConfirm(null)
+  }
+
+  function handleResetLogg() {
+    updateTeam(activeTeam, { subLog: [] })
     saveSubLog(activeTeam, [])
-    setShowResetConfirm(false)
+    setShowResetConfirm(null)
   }
 
   return (
@@ -176,20 +181,35 @@ export default function App() {
                   </button>
                 ))}
               </div>
-              <button
-                onClick={() => setShowResetConfirm(true)}
-                className="px-3 py-2 rounded-xl bg-gray-800 text-gray-400 text-sm font-bold"
-              >
-                Nullstill
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowResetConfirm('logg')}
+                  className="px-3 py-2 rounded-xl bg-gray-800 text-gray-400 text-sm font-bold"
+                >
+                  Nullstill logg
+                </button>
+                <button
+                  onClick={() => setShowResetConfirm('oppsett')}
+                  className="px-3 py-2 rounded-xl bg-gray-800 text-gray-400 text-sm font-bold"
+                >
+                  Nullstill oppsett
+                </button>
+              </div>
             </div>
 
             {showResetConfirm && (
               <div className="bg-red-950 border border-red-700 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
-                <span className="text-sm text-red-200">Tøm banen og nullstill byttelogg?</span>
+                <span className="text-sm text-red-200">
+                  {showResetConfirm === 'logg' ? 'Nullstill bytteloggen?' : 'Tøm banen?'}
+                </span>
                 <div className="flex gap-2">
-                  <button onClick={handleReset} className="bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-bold">Ja</button>
-                  <button onClick={() => setShowResetConfirm(false)} className="bg-gray-700 text-white px-3 py-2 rounded-lg text-sm">Avbryt</button>
+                  <button
+                    onClick={showResetConfirm === 'logg' ? handleResetLogg : handleResetOppsett}
+                    className="bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-bold"
+                  >
+                    Ja
+                  </button>
+                  <button onClick={() => setShowResetConfirm(null)} className="bg-gray-700 text-white px-3 py-2 rounded-lg text-sm">Avbryt</button>
                 </div>
               </div>
             )}
