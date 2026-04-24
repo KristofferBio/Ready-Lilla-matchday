@@ -107,3 +107,24 @@ export function savePlayTime(teamId, { playMinutes, fieldStartMinute }) {
   localStorage.setItem(k.FIELD_START_MIN, JSON.stringify(fieldStartMinute))
   saveToCloud(teamId, { playMinutes, fieldStartMinute })
 }
+
+// ── Clock (per-team, local only — cloud handled via subscribeToClockFromCloud) ──
+
+export function loadClockLocal(teamId) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(`kampstotte_${teamId}_clock`))
+    if (!saved) return { running: false, elapsed: 0, virtualStart: null }
+    const elapsed = saved.running && saved.virtualStart != null
+      ? Math.max(0, Math.floor((Date.now() - saved.virtualStart) / 1000))
+      : saved.elapsed ?? 0
+    if (elapsed >= 50 * 60) {
+      localStorage.removeItem(`kampstotte_${teamId}_clock`)
+      return { running: false, elapsed: 0, virtualStart: null }
+    }
+    return { running: saved.running ?? false, elapsed, virtualStart: saved.virtualStart ?? null }
+  } catch { return { running: false, elapsed: 0, virtualStart: null } }
+}
+
+export function saveClockLocal(teamId, clockState) {
+  localStorage.setItem(`kampstotte_${teamId}_clock`, JSON.stringify(clockState))
+}

@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app'
-import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore'
+import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore'
 
 const firebaseConfig = {
   apiKey: "AIzaSyCCm2Yc39pEoqV7-W9BSt-_dS1XBTw2t74",
@@ -14,9 +14,8 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig)
 const db  = getFirestore(app)
 
-function ref(teamId) {
-  return doc(db, 'teams', teamId)
-}
+function ref(teamId)      { return doc(db, 'teams', teamId) }
+function clockRef(teamId) { return doc(db, 'clock', teamId) }
 
 export async function loadFromCloud(teamId) {
   try {
@@ -31,5 +30,19 @@ export async function saveToCloud(teamId, data) {
     await setDoc(ref(teamId), data, { merge: true })
   } catch (e) {
     console.warn('Cloud save failed:', e)
+  }
+}
+
+export function subscribeToClockFromCloud(teamId, callback) {
+  return onSnapshot(clockRef(teamId), snap => {
+    callback(snap.exists() ? snap.data() : null)
+  })
+}
+
+export async function saveClockToCloud(teamId, clockState) {
+  try {
+    await setDoc(clockRef(teamId), clockState)
+  } catch (e) {
+    console.warn('Clock save failed:', e)
   }
 }

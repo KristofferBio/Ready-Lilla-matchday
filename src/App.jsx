@@ -6,9 +6,10 @@ import SquadManager from './components/SquadManager'
 import { FORMATION_KEYS, FORMATIONS } from './formations'
 import {
   loadAllFromCloud,
-  loadSquadLocal, loadFormationLocal, loadPositionsLocal, loadSubLogLocal, loadPlayTimeLocal,
-  saveSquad, saveFormation, savePositions, saveSubLog, savePlayTime,
+  loadSquadLocal, loadFormationLocal, loadPositionsLocal, loadSubLogLocal, loadPlayTimeLocal, loadClockLocal,
+  saveSquad, saveFormation, savePositions, saveSubLog, savePlayTime, saveClockLocal,
 } from './storage'
+import { subscribeToClockFromCloud, saveClockToCloud } from './firebase'
 
 const TEAMS = [
   { id: 'ready-lilla', label: 'Lilla', color: 'bg-purple-700', activeColor: 'bg-purple-500', textColor: 'text-purple-300' },
@@ -21,14 +22,18 @@ const TABS = [
 ]
 
 function emptyTeamState(teamId) {
-  const pt = loadPlayTimeLocal(teamId)
+  const pt    = loadPlayTimeLocal(teamId)
+  const clock = loadClockLocal(teamId)
   return {
-    squad:            loadSquadLocal(teamId),
-    formation:        loadFormationLocal(teamId),
-    positions:        loadPositionsLocal(teamId),
-    subLog:           loadSubLogLocal(teamId),
-    playMinutes:      pt.playMinutes,
-    fieldStartMinute: pt.fieldStartMinute,
+    squad:             loadSquadLocal(teamId),
+    formation:         loadFormationLocal(teamId),
+    positions:         loadPositionsLocal(teamId),
+    subLog:            loadSubLogLocal(teamId),
+    playMinutes:       pt.playMinutes,
+    fieldStartMinute:  pt.fieldStartMinute,
+    clockRunning:      clock.running,
+    clockVirtualStart: clock.virtualStart,
+    clockElapsed:      clock.elapsed,
   }
 }
 
@@ -42,15 +47,34 @@ export default function App() {
   const [minute, setMinute]         = useState(0)
 
   const team = TEAMS.find(t => t.id === activeTeam)
-  const { squad, formation, positions, subLog, playMinutes, fieldStartMinute } = teamData[activeTeam]
+  const { squad, formation, positions, subLog, playMinutes, fieldStartMinute,
+          clockRunning, clockVirtualStart, clockElapsed } = teamData[activeTeam]
 
-  // Load both teams from cloud on startup
+  // Load both teams from cloud on startup + subscribe to per-team clock
   useEffect(() => {
     TEAMS.forEach(t => {
       loadAllFromCloud(t.id).then(data => {
-        setTeamData(prev => ({ ...prev, [t.id]: data }))
+        setTeamData(prev => ({ ...prev, [t.id]: { ...prev[t.id], ...data } }))
       })
     })
+
+    const unsubs = TEAMS.map(t =>
+      subscribeToClockFromCloud(t.id, clockData => {
+        if (!clockData) return
+        saveClockLocal(t.id, clockData)
+        setTeamData(prev => ({
+          ...prev,
+          [t.id]: {
+            ...prev[t.id],
+            clockRunning:      clockData.running      ?? false,
+            clockVirtualStart: clockData.virtualStart ?? null,
+            clockElapsed:      clockData.elapsed      ?? 0,
+          },
+        }))
+      })
+    )
+
+    return () => unsubs.forEach(u => u())
   }, [])
 
   function updateTeam(teamId, patch) {
@@ -59,6 +83,9 @@ export default function App() {
 
   function switchTeam(teamId) {
     setActiveTeam(teamId)
+    const { clockRunning: r, clockVirtualStart: vs, clockElapsed: ce } = teamData[teamId]
+    const secs = r && vs != null ? Math.floor((Date.now() - vs) / 1000) : ce ?? 0
+    setMinute(Math.floor(secs / 60))
   }
 
   // ── Squad ──────────────────────────────────────────────────────
@@ -139,12 +166,46 @@ export default function App() {
     savePlayTime(activeTeam, { playMinutes: {}, fieldStartMinute: {} })
   }
 
+  // ── Clock ─────────────────────────────────────────────────────
+
+  function handleClockStart() {
+    const elapsed     = teamData[activeTeam].clockElapsed ?? 0
+    const virtualStart = Date.now() - elapsed * 1000
+    const state       = { running: true, virtualStart, elapsed }
+    saveClockLocal(activeTeam, state)
+    saveClockToCloud(activeTeam, state)
+    updateTeam(activeTeam, { clockRunning: true, clockVirtualStart: virtualStart })
+  }
+
+  function handleClockPause(currentElapsed) {
+    const state = { running: false, virtualStart: null, elapsed: currentElapsed }
+    saveClockLocal(activeTeam, state)
+    saveClockToCloud(activeTeam, state)
+    updateTeam(activeTeam, { clockRunning: false, clockVirtualStart: null, clockElapsed: currentElapsed })
+  }
+
+  function handleClockReset() {
+    const state = { running: false, virtualStart: null, elapsed: 0 }
+    saveClockLocal(activeTeam, state)
+    saveClockToCloud(activeTeam, state)
+    updateTeam(activeTeam, { clockRunning: false, clockVirtualStart: null, clockElapsed: 0 })
+    setMinute(0)
+  }
+
   return (
     <div className="flex flex-col h-svh bg-gray-950 text-white">
 
       {/* ── Clock – always visible ── */}
       <div className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex justify-center">
-        <MatchClock onMinute={setMinute} />
+        <MatchClock
+          running={clockRunning ?? false}
+          virtualStart={clockVirtualStart ?? null}
+          elapsed={clockElapsed ?? 0}
+          onStart={handleClockStart}
+          onPause={handleClockPause}
+          onReset={handleClockReset}
+          onMinute={setMinute}
+        />
       </div>
 
       {/* ── Scrollable content ── */}
