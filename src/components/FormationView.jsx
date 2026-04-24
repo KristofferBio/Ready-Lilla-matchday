@@ -62,6 +62,14 @@ export default function FormationView({
     return acc
   }
 
+  function stintColor(id) {
+    const start = (fieldStartMinute ?? {})[id]
+    const stint = (minute ?? 0) - (start ?? (minute ?? 0))
+    if (stint >= 15) return '#dc2626'
+    if (stint >= 10) return '#ca8a04'
+    return '#16a34a'
+  }
+
   // ── Coordinate helpers ─────────────────────────────────────────
 
   function findPosAtPoint(clientX, clientY) {
@@ -292,15 +300,21 @@ export default function FormationView({
                     fontSize="9.5" fill="#bfdbfe" style={{ pointerEvents: 'none' }}>
                     {player.name.length > 8 ? player.name.slice(0, 7) + '.' : player.name}
                   </text>
-                  {(() => { const t = playerTime(playerId, true); return t > 0 && (
-                    <g style={{ pointerEvents: 'none' }}>
-                      <rect x={cx + 10} y={cy - 36} width={24} height={13} rx={6} fill="rgba(0,0,0,0.75)" />
-                      <text x={cx + 22} y={cy - 29} textAnchor="middle" dominantBaseline="middle"
-                        fontSize="8" fontWeight="bold" fill="#86efac">
-                        {t}m
-                      </text>
-                    </g>
-                  )})()}
+                  {(() => {
+                    const t = playerTime(playerId, true)
+                    if (t <= 0) return null
+                    const color = stintColor(playerId)
+                    const bx = cx + 7, by = cy - 40
+                    return (
+                      <g style={{ pointerEvents: 'none' }}>
+                        <rect x={bx} y={by} width={30} height={17} rx={7} fill={color} opacity={0.92} />
+                        <text x={bx + 13} y={by + 9} textAnchor="middle" dominantBaseline="middle"
+                          fontSize="11" fontWeight="bold" fill="white">{t}</text>
+                        <text x={bx + 24} y={by + 10} textAnchor="middle" dominantBaseline="middle"
+                          fontSize="7" fill="white" opacity={0.85}>m</text>
+                      </g>
+                    )
+                  })()}
                 </>
               ) : (
                 <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
@@ -312,6 +326,15 @@ export default function FormationView({
           )
         })}
       </svg>
+
+      <div className="flex justify-center gap-5 text-[10px] text-gray-400">
+        {[['#16a34a','1–9m'],['#ca8a04','10–14m'],['#dc2626','≥15m']].map(([c,l]) => (
+          <span key={l} className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: c }} />
+            {l}
+          </span>
+        ))}
+      </div>
 
       <div className="w-full">
         <p className="text-xs uppercase tracking-widest text-gray-500 mb-2 font-bold">
