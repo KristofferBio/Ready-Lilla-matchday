@@ -58,7 +58,7 @@ export default function FormationView({
 
   function playerTime(id, isOnField) {
     const acc = (playMinutes ?? {})[id] ?? 0
-    if (isOnField) return acc + ((minute ?? 0) - ((fieldStartMinute ?? {})[id] ?? (minute ?? 0)))
+    if (isOnField) return acc + ((minute ?? 0) - ((fieldStartMinute ?? {})[id] ?? 0))
     return acc
   }
 

@@ -123,7 +123,7 @@ export default function App() {
 
     for (const id of oldOnField) {
       if (!newOnField.has(id)) {
-        newPlayMinutes[id] = (newPlayMinutes[id] ?? 0) + (minute - (newFieldStartMinute[id] ?? minute))
+        newPlayMinutes[id] = (newPlayMinutes[id] ?? 0) + (minute - (newFieldStartMinute[id] ?? 0))
         delete newFieldStartMinute[id]
       }
     }
@@ -149,7 +149,7 @@ export default function App() {
   function handleResetOppsett() {
     const newPlayMinutes = { ...playMinutes }
     for (const id of Object.values(positions)) {
-      newPlayMinutes[id] = (newPlayMinutes[id] ?? 0) + (minute - (fieldStartMinute[id] ?? minute))
+      newPlayMinutes[id] = (newPlayMinutes[id] ?? 0) + (minute - (fieldStartMinute[id] ?? 0))
     }
     updateTeam(activeTeam, { positions: {}, playMinutes: newPlayMinutes, fieldStartMinute: {} })
     savePositions(activeTeam, {})
