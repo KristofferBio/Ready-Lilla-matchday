@@ -13,6 +13,7 @@ export default function FormationView({
   onSubstitution,
   onResetOppsett,
   onResetLogg,
+  onResetSpilletid,
 }) {
   const svgRef = useRef(null)
 
@@ -199,7 +200,7 @@ export default function FormationView({
   const ConfirmDialog = ({ onConfirm }) => (
     <div className="bg-red-950 border border-red-700 rounded-xl px-4 py-3 flex items-center justify-between gap-3 w-full">
       <span className="text-sm text-red-200">
-        {confirmReset === 'logg' ? 'Nullstill bytteloggen?' : 'Tøm kampoppsettet?'}
+        {confirmReset === 'logg' ? 'Nullstill bytteloggen?' : confirmReset === 'spilletid' ? 'Nullstill spilletid?' : 'Tøm kampoppsettet?'}
       </span>
       <div className="flex gap-2">
         <button onClick={() => { onConfirm(); setConfirmReset(null) }}
@@ -213,19 +214,29 @@ export default function FormationView({
   return (
     <div className="flex flex-col items-center gap-3 select-none w-full">
 
-      <div
-        className={`w-full text-center text-xs py-2 rounded-lg transition-colors cursor-pointer select-none ${
-          dragOver === 'bench' ? 'bg-yellow-400 text-black font-bold' : 'bg-yellow-500 text-black hover:bg-yellow-400'
-        }`}
-        onDragOver={e => { e.preventDefault(); setDragOver('bench') }}
-        onDragLeave={() => setDragOver(null)}
-        onDrop={onBenchZoneDrop}
-        onClick={() => setConfirmReset('oppsett')}
-      >
-        Nullstill kampoppsett
+      <div className="flex gap-2 w-full">
+        <div
+          className={`flex-1 text-center text-xs py-2 rounded-lg transition-colors cursor-pointer select-none ${
+            dragOver === 'bench' ? 'bg-yellow-400 text-black font-bold' : 'bg-yellow-500 text-black hover:bg-yellow-400'
+          }`}
+          onDragOver={e => { e.preventDefault(); setDragOver('bench') }}
+          onDragLeave={() => setDragOver(null)}
+          onDrop={onBenchZoneDrop}
+          onClick={() => setConfirmReset('oppsett')}
+        >
+          Nullstill kampoppsett
+        </div>
+        <div
+          className="flex-1 text-center text-xs py-2 rounded-lg transition-colors cursor-pointer select-none bg-yellow-500 text-black hover:bg-yellow-400"
+          onClick={() => setConfirmReset('spilletid')}
+        >
+          Nullstill spilletid
+        </div>
       </div>
 
-      {confirmReset === 'oppsett' && <ConfirmDialog onConfirm={onResetOppsett} />}
+      {(confirmReset === 'oppsett' || confirmReset === 'spilletid') && (
+        <ConfirmDialog onConfirm={confirmReset === 'oppsett' ? onResetOppsett : onResetSpilletid} />
+      )}
 
       <svg
         ref={svgRef}

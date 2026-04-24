@@ -134,6 +134,11 @@ export default function App() {
     saveSubLog(activeTeam, [])
   }
 
+  function handleResetSpilletid() {
+    updateTeam(activeTeam, { playMinutes: {}, fieldStartMinute: {} })
+    savePlayTime(activeTeam, { playMinutes: {}, fieldStartMinute: {} })
+  }
+
   return (
     <div className="flex flex-col h-svh bg-gray-950 text-white">
 
@@ -213,6 +218,7 @@ export default function App() {
               onSubstitution={handleSubstitution}
               onResetOppsett={handleResetOppsett}
               onResetLogg={handleResetLogg}
+              onResetSpilletid={handleResetSpilletid}
             />
 
             <SubLog log={subLog} squad={squad} />
