@@ -65,9 +65,9 @@ export default function FormationView({
   function stintColor(id) {
     const start = (fieldStartMinute ?? {})[id]
     const stint = (minute ?? 0) - (start ?? 0)
-    if (stint >= 15) return '#dc2626'
-    if (stint >= 10) return '#ca8a04'
-    return '#16a34a'
+    if (stint >= 15) return { bg: '#dc2626', text: 'white' }
+    if (stint >= 10) return { bg: '#eab308', text: '#1f2937' }
+    return { bg: '#16a34a', text: 'white' }
   }
 
   // ── Coordinate helpers ─────────────────────────────────────────
@@ -303,15 +303,15 @@ export default function FormationView({
                   {(() => {
                     const t = playerTime(playerId, true)
                     if (t <= 0) return null
-                    const color = stintColor(playerId)
+                    const { bg, text } = stintColor(playerId)
                     const bx = cx + 7, by = cy - 40
                     return (
                       <g style={{ pointerEvents: 'none' }}>
-                        <rect x={bx} y={by} width={30} height={17} rx={7} fill={color} opacity={0.92} />
+                        <rect x={bx} y={by} width={30} height={17} rx={7} fill={bg} opacity={0.92} />
                         <text x={bx + 13} y={by + 9} textAnchor="middle" dominantBaseline="middle"
-                          fontSize="11" fontWeight="bold" fill="white">{t}</text>
+                          fontSize="11" fontWeight="bold" fill={text}>{t}</text>
                         <text x={bx + 24} y={by + 10} textAnchor="middle" dominantBaseline="middle"
-                          fontSize="7" fill="white" opacity={0.85}>m</text>
+                          fontSize="7" fill={text} opacity={0.85}>m</text>
                       </g>
                     )
                   })()}
@@ -328,7 +328,7 @@ export default function FormationView({
       </svg>
 
       <div className="flex justify-center gap-5 text-[10px] text-gray-400">
-        {[['#16a34a','1–9m'],['#ca8a04','10–14m'],['#dc2626','≥15m']].map(([c,l]) => (
+        {[['#16a34a','1–9m'],['#eab308','10–14m'],['#dc2626','≥15m']].map(([c,l]) => (
           <span key={l} className="flex items-center gap-1">
             <span className="w-5 h-3 rounded shrink-0" style={{ background: c }} />
             {l}
