@@ -104,13 +104,33 @@ export default function App() {
 
   function handleFormationChange(f) {
     if (f === formation) return
-    saveFormation(activeTeam, f)
-    const validPosIds = new Set(FORMATIONS[f].positions.map(p => p.id))
-    const cleanedPos  = Object.fromEntries(
-      Object.entries(positions).filter(([posId]) => validPosIds.has(posId))
+
+    const oldPosIds = new Set(FORMATIONS[formation].positions.map(p => p.id))
+    const newPosIds = new Set(FORMATIONS[f].positions.map(p => p.id))
+
+    const oldOnField = new Set(
+      Object.entries(positions).filter(([id]) => oldPosIds.has(id)).map(([, pid]) => pid)
     )
-    updateTeam(activeTeam, { formation: f, positions: cleanedPos })
-    savePositions(activeTeam, cleanedPos)
+    const newOnField = new Set(
+      Object.entries(positions).filter(([id]) => newPosIds.has(id)).map(([, pid]) => pid)
+    )
+
+    const newPlayMinutes      = { ...playMinutes }
+    const newFieldStartMinute = { ...fieldStartMinute }
+
+    for (const id of oldOnField) {
+      if (!newOnField.has(id)) {
+        newPlayMinutes[id] = (newPlayMinutes[id] ?? 0) + (minute - (newFieldStartMinute[id] ?? 0))
+        delete newFieldStartMinute[id]
+      }
+    }
+    for (const id of newOnField) {
+      if (!oldOnField.has(id)) newFieldStartMinute[id] = minute
+    }
+
+    saveFormation(activeTeam, f)
+    savePlayTime(activeTeam, { playMinutes: newPlayMinutes, fieldStartMinute: newFieldStartMinute })
+    updateTeam(activeTeam, { formation: f, playMinutes: newPlayMinutes, fieldStartMinute: newFieldStartMinute })
   }
 
   // ── Positions ─────────────────────────────────────────────────
