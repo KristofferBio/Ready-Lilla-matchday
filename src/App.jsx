@@ -3,7 +3,7 @@ import MatchClock from './components/MatchClock'
 import FormationView from './components/FormationView'
 import SubLog from './components/SubLog'
 import SquadManager from './components/SquadManager'
-import { FORMATION_KEYS, FORMATIONS } from './formations'
+import { FORMATION_KEYS } from './formations'
 import {
   loadAllFromCloud,
   loadSquadLocal, loadFormationLocal, loadPositionsLocal, loadSubLogLocal, loadPlayTimeLocal, loadClockLocal,
@@ -27,7 +27,7 @@ function emptyTeamState(teamId) {
   return {
     squad:             loadSquadLocal(teamId),
     formation:         loadFormationLocal(teamId),
-    positions:         loadPositionsLocal(teamId),
+    positionsByFormation: loadPositionsLocal(teamId),
     subLog:            loadSubLogLocal(teamId),
     playMinutes:       pt.playMinutes,
     fieldStartMinute:  pt.fieldStartMinute,
@@ -47,8 +47,9 @@ export default function App() {
   const [minute, setMinute]         = useState(0)
 
   const team = TEAMS.find(t => t.id === activeTeam)
-  const { squad, formation, positions, subLog, playMinutes, fieldStartMinute,
+  const { squad, formation, positionsByFormation, subLog, playMinutes, fieldStartMinute,
           clockRunning, clockVirtualStart, clockElapsed } = teamData[activeTeam]
+  const positions = positionsByFormation?.[formation] ?? {}
 
   // Load both teams from cloud on startup + subscribe to per-team clock
   useEffect(() => {
@@ -93,11 +94,14 @@ export default function App() {
   function handleSquadChange(newSquad) {
     saveSquad(activeTeam, newSquad)
     const ids = new Set(newSquad.map(p => p.id))
-    const cleanedPos = Object.fromEntries(
-      Object.entries(positions).filter(([, pid]) => ids.has(pid))
+    const cleanedPBF = Object.fromEntries(
+      Object.entries(positionsByFormation ?? {}).map(([f, pos]) => [
+        f,
+        Object.fromEntries(Object.entries(pos).filter(([, pid]) => ids.has(pid))),
+      ])
     )
-    updateTeam(activeTeam, { squad: newSquad, positions: cleanedPos })
-    savePositions(activeTeam, cleanedPos)
+    updateTeam(activeTeam, { squad: newSquad, positionsByFormation: cleanedPBF })
+    savePositions(activeTeam, cleanedPBF)
   }
 
   // ── Formation ─────────────────────────────────────────────────
@@ -105,15 +109,8 @@ export default function App() {
   function handleFormationChange(f) {
     if (f === formation) return
 
-    const oldPosIds = new Set(FORMATIONS[formation].positions.map(p => p.id))
-    const newPosIds = new Set(FORMATIONS[f].positions.map(p => p.id))
-
-    const oldOnField = new Set(
-      Object.entries(positions).filter(([id]) => oldPosIds.has(id)).map(([, pid]) => pid)
-    )
-    const newOnField = new Set(
-      Object.entries(positions).filter(([id]) => newPosIds.has(id)).map(([, pid]) => pid)
-    )
+    const oldOnField = new Set(Object.values(positions))
+    const newOnField = new Set(Object.values(positionsByFormation?.[f] ?? {}))
 
     const newPlayMinutes      = { ...playMinutes }
     const newFieldStartMinute = { ...fieldStartMinute }
@@ -151,8 +148,9 @@ export default function App() {
       if (!oldOnField.has(id)) newFieldStartMinute[id] = minute
     }
 
-    updateTeam(activeTeam, { positions: newPos, playMinutes: newPlayMinutes, fieldStartMinute: newFieldStartMinute })
-    savePositions(activeTeam, newPos)
+    const newPBF = { ...positionsByFormation, [formation]: newPos }
+    updateTeam(activeTeam, { positionsByFormation: newPBF, playMinutes: newPlayMinutes, fieldStartMinute: newFieldStartMinute })
+    savePositions(activeTeam, newPBF)
     savePlayTime(activeTeam, { playMinutes: newPlayMinutes, fieldStartMinute: newFieldStartMinute })
   }
 
@@ -171,8 +169,9 @@ export default function App() {
     for (const id of Object.values(positions)) {
       newPlayMinutes[id] = (newPlayMinutes[id] ?? 0) + (minute - (fieldStartMinute[id] ?? 0))
     }
-    updateTeam(activeTeam, { positions: {}, playMinutes: newPlayMinutes, fieldStartMinute: {} })
-    savePositions(activeTeam, {})
+    const newPBF = { ...positionsByFormation, [formation]: {} }
+    updateTeam(activeTeam, { positionsByFormation: newPBF, playMinutes: newPlayMinutes, fieldStartMinute: {} })
+    savePositions(activeTeam, newPBF)
     savePlayTime(activeTeam, { playMinutes: newPlayMinutes, fieldStartMinute: {} })
   }
 

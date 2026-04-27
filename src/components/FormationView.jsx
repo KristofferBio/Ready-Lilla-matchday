@@ -41,10 +41,7 @@ export default function FormationView({
 
   const formDef    = FORMATIONS[formation]
   const playerById = Object.fromEntries(squad.map(p => [p.id, p]))
-  const currentPosIds = new Set(formDef.positions.map(p => p.id))
-  const onField = new Set(
-    Object.entries(positions).filter(([posId]) => currentPosIds.has(posId)).map(([, pid]) => pid)
-  )
+  const onField    = new Set(Object.values(positions))
 
   // Last sub-off index per player (higher = more recently benched)
   const lastSubOffIndex = {}

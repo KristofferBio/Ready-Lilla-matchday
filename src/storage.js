@@ -60,22 +60,22 @@ export async function loadAllFromCloud(teamId) {
     cacheLocally(teamId, data)
     const local = loadPlayTimeLocal(teamId)
     return {
-      squad:            data.squad                        ?? loadSquadLocal(teamId),
-      formation:        validFormation(data.formation)    ?? loadFormationLocal(teamId),
-      positions:        data.positions                    ?? loadPositionsLocal(teamId),
-      subLog:           data.subLog                       ?? loadSubLogLocal(teamId),
-      playMinutes:      data.playMinutes                  ?? local.playMinutes,
-      fieldStartMinute: data.fieldStartMinute             ?? local.fieldStartMinute,
+      squad:                data.squad                        ?? loadSquadLocal(teamId),
+      formation:            validFormation(data.formation)    ?? loadFormationLocal(teamId),
+      positionsByFormation: data.positions                    ?? loadPositionsLocal(teamId),
+      subLog:               data.subLog                       ?? loadSubLogLocal(teamId),
+      playMinutes:          data.playMinutes                  ?? local.playMinutes,
+      fieldStartMinute:     data.fieldStartMinute             ?? local.fieldStartMinute,
     }
   }
   const local = loadPlayTimeLocal(teamId)
   return {
-    squad:            loadSquadLocal(teamId),
-    formation:        validFormation(loadFormationLocal(teamId)),
-    positions:        loadPositionsLocal(teamId),
-    subLog:           loadSubLogLocal(teamId),
-    playMinutes:      local.playMinutes,
-    fieldStartMinute: local.fieldStartMinute,
+    squad:                loadSquadLocal(teamId),
+    formation:            validFormation(loadFormationLocal(teamId)),
+    positionsByFormation: loadPositionsLocal(teamId),
+    subLog:               loadSubLogLocal(teamId),
+    playMinutes:          local.playMinutes,
+    fieldStartMinute:     local.fieldStartMinute,
   }
 }
 
