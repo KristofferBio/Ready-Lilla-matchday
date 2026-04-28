@@ -34,6 +34,7 @@ export default function FormationView({
   // Mouse drag state (for desktop HTML5 DnD)
   const [fieldDragging, setFieldDragging] = useState(null)
   const [benchDragging, setBenchDragging] = useState(null)
+  const [benchTailIds,  setBenchTailIds]  = useState(new Set())
 
   // Visual feedback only
   const [dragOver, setDragOver] = useState(null)
@@ -48,12 +49,16 @@ export default function FormationView({
   ;(subLog ?? []).forEach((entry, i) => { lastSubOffIndex[entry.outId] = i })
 
   const bench = squad.filter(p => !onField.has(p.id)).sort((a, b) => {
+    const aIsTail = benchTailIds.has(a.id)
+    const bIsTail = benchTailIds.has(b.id)
+    if (aIsTail && !bIsTail) return 1
+    if (!aIsTail && bIsTail) return -1
     const ai = lastSubOffIndex[a.id]
     const bi = lastSubOffIndex[b.id]
     if (ai === undefined && bi === undefined) return a.number - b.number
     if (ai === undefined) return -1
     if (bi === undefined) return 1
-    return ai - bi  // earlier sub-off = been on bench longer = leftmost
+    return ai - bi
   })
 
   function playerTime(id, isOnField) {
@@ -99,6 +104,7 @@ export default function FormationView({
     const newPos = { ...pos, [posId]: inId }
     onPosChangeRef.current(newPos)
     if (outId) onSubRef.current(inId, outId)
+    setBenchTailIds(prev => { const s = new Set(prev); s.delete(inId); return s })
   }
 
   function applyFieldDrop(posId, playerId, source) {
@@ -111,9 +117,11 @@ export default function FormationView({
   }
 
   function applyFieldToBench(source) {
-    const newPos = { ...positionsRef.current }
+    const newPos   = { ...positionsRef.current }
+    const playerId = newPos[source]
     delete newPos[source]
     onPosChangeRef.current(newPos)
+    setBenchTailIds(prev => new Set([...prev, playerId]))
   }
 
   // ── Touch: attach non-passive listeners SYNCHRONOUSLY ─────────
@@ -271,8 +279,8 @@ export default function FormationView({
             >
               <circle
                 cx={cx} cy={cy} r={28}
-                fill={isOver ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.2)'}
-                stroke={isOver ? 'white' : 'rgba(255,255,255,0.35)'}
+                fill={isOver ? (benchDragging ? 'rgba(220,38,38,0.35)' : 'rgba(255,255,255,0.28)') : 'rgba(0,0,0,0.2)'}
+                stroke={isOver ? (benchDragging ? '#ef4444' : 'white') : 'rgba(255,255,255,0.35)'}
                 strokeWidth="2"
                 strokeDasharray={player ? '0' : '5,3'}
               />
