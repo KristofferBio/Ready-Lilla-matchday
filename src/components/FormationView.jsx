@@ -65,8 +65,8 @@ export default function FormationView({
   function stintColor(id) {
     const start = (fieldStartMinute ?? {})[id]
     const stint = (minute ?? 0) - (start ?? 0)
-    if (stint >= 15) return { bg: '#dc2626', text: 'white' }
-    if (stint >= 10) return { bg: '#eab308', text: '#1f2937' }
+    if (stint >= 20) return { bg: '#dc2626', text: 'white' }
+    if (stint >= 13) return { bg: '#eab308', text: '#1f2937' }
     return { bg: '#16a34a', text: 'white' }
   }
 
@@ -328,7 +328,7 @@ export default function FormationView({
       </svg>
 
       <div className="flex justify-center gap-5 text-[10px] text-gray-400">
-        {[['#16a34a','1–9m'],['#eab308','10–14m'],['#dc2626','≥15m']].map(([c,l]) => (
+        {[['#16a34a','1–12m'],['#eab308','13–19m'],['#dc2626','≥20m']].map(([c,l]) => (
           <span key={l} className="flex items-center gap-1">
             <span className="w-5 h-3 rounded shrink-0" style={{ background: c }} />
             {l}
