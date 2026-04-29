@@ -12,8 +12,9 @@ import {
 import { subscribeToClockFromCloud, saveClockToCloud } from './firebase'
 
 const TEAMS = [
-  { id: 'ready-lilla', label: 'Lilla', color: 'bg-purple-700', activeColor: 'bg-purple-500', textColor: 'text-purple-300' },
-  { id: 'ready-gronn', label: 'Grønn', color: 'bg-green-800',  activeColor: 'bg-green-600',  textColor: 'text-green-300'  },
+  { id: 'ready-lilla',  name: 'Ready Lilla',  activeColor: 'bg-purple-500', textColor: 'text-purple-300', navBg: 'bg-purple-950', borderColor: 'border-purple-400', formBg: 'bg-purple-600' },
+  { id: 'ready-gronn',  name: 'Ready Grønn',  activeColor: 'bg-green-600',  textColor: 'text-green-300',  navBg: 'bg-green-950',  borderColor: 'border-green-400',  formBg: 'bg-green-600'  },
+  { id: 'ohil-indigo',  name: 'ØHIL Indigo',  activeColor: 'bg-blue-600',   textColor: 'text-blue-300',   navBg: 'bg-blue-950',   borderColor: 'border-blue-400',   formBg: 'bg-blue-600'   },
 ]
 
 const TABS = [
@@ -242,22 +243,20 @@ export default function App() {
                   : 'bg-gray-800 text-gray-400'
               }`}
             >
-              Ready {t.label}
+              {t.name}
             </button>
           ))}
         </div>
 
         {/* ── Tab bar (scrolls away) ── */}
-        <nav className={`border-b border-gray-800 flex ${
-          activeTeam === 'ready-lilla' ? 'bg-purple-950' : 'bg-green-950'
-        }`}>
+        <nav className={`border-b border-gray-800 flex ${team.navBg}`}>
           {TABS.map(t => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
               className={`flex-1 py-3 text-sm font-bold transition-colors ${
                 tab === t.id
-                  ? `${team.textColor} border-b-2 ${activeTeam === 'ready-lilla' ? 'border-purple-400' : 'border-green-400'}`
+                  ? `${team.textColor} border-b-2 ${team.borderColor}`
                   : 'text-gray-500'
               }`}
             >
@@ -277,7 +276,7 @@ export default function App() {
                   onClick={() => handleFormationChange(f)}
                   className={`px-3 py-2 rounded-xl font-bold text-sm transition-colors ${
                     formation === f
-                      ? (activeTeam === 'ready-lilla' ? 'bg-purple-600 text-white' : 'bg-green-600 text-white')
+                      ? `${team.formBg} text-white`
                       : 'bg-gray-800 text-gray-300'
                   }`}
                 >
