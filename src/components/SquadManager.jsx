@@ -25,7 +25,7 @@ export default function SquadManager({ squad, onSquadChange }) {
 
   function addPlayer() {
     if (!newForm.number || !newForm.name.trim()) return
-    if (squad.length >= 15) return
+    if (squad.length >= 20) return
     const player = {
       id: Date.now().toString(),
       number: Number(newForm.number),
@@ -40,7 +40,7 @@ export default function SquadManager({ squad, onSquadChange }) {
 
   return (
     <div className="p-4 max-w-lg mx-auto">
-      <h2 className="text-xl font-bold mb-4 text-white">Spillerstamme ({squad.length}/15)</h2>
+      <h2 className="text-xl font-bold mb-4 text-white">Spillerstamme</h2>
 
       <div className="space-y-2 mb-4">
         {sorted.map(player => (
@@ -103,7 +103,7 @@ export default function SquadManager({ squad, onSquadChange }) {
           <button onClick={() => setAddMode(false)} className="bg-gray-600 text-white px-3 py-2 rounded-lg">Avbryt</button>
         </div>
       ) : (
-        squad.length < 15 && (
+        squad.length < 20 && (
           <button
             onClick={() => setAddMode(true)}
             className="w-full py-3 rounded-xl bg-blue-700 text-white font-bold text-lg"
