@@ -13,6 +13,7 @@ export default function MatchClock({ running, virtualStart, elapsed, onStart, on
   }
 
   const [display, setDisplay] = useState(computeDisplay)
+  const [confirmReset, setConfirmReset] = useState(false)
 
   // Emit initial minute on mount
   useEffect(() => { onMinuteRef.current(Math.floor(computeDisplay() / 60)) }, [])
@@ -68,9 +69,29 @@ export default function MatchClock({ running, virtualStart, elapsed, onStart, on
       >
         {running ? 'Pause' : 'Start'}
       </button>
-      <button onClick={onReset} className="px-4 py-2 rounded-lg font-bold text-sm bg-gray-700 text-white">
-        Reset
-      </button>
+      {confirmReset ? (
+        <>
+          <button
+            onClick={() => { onReset(); setConfirmReset(false) }}
+            className="px-4 py-2 rounded-lg font-bold text-sm bg-red-600 text-white"
+          >
+            Bekreft
+          </button>
+          <button
+            onClick={() => setConfirmReset(false)}
+            className="px-4 py-2 rounded-lg font-bold text-sm bg-gray-700 text-white"
+          >
+            Avbryt
+          </button>
+        </>
+      ) : (
+        <button
+          onClick={() => setConfirmReset(true)}
+          className="px-4 py-2 rounded-lg font-bold text-sm bg-gray-700 text-white"
+        >
+          Reset
+        </button>
+      )}
     </div>
   )
 }
