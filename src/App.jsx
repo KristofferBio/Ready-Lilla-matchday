@@ -14,7 +14,6 @@ import { subscribeToClockFromCloud, saveClockToCloud } from './firebase'
 const TEAMS = [
   { id: 'ready-lilla',  name: 'Ready Lilla',  activeColor: 'bg-purple-500', textColor: 'text-purple-300', navBg: 'bg-purple-950', borderColor: 'border-purple-400', formBg: 'bg-purple-600' },
   { id: 'ready-gronn',  name: 'Ready Grønn',  activeColor: 'bg-green-600',  textColor: 'text-green-300',  navBg: 'bg-green-950',  borderColor: 'border-green-400',  formBg: 'bg-green-600'  },
-  { id: 'ohil-indigo',  name: 'ØHIL Indigo',  activeColor: 'bg-blue-600',   textColor: 'text-blue-300',   navBg: 'bg-blue-950',   borderColor: 'border-blue-400',   formBg: 'bg-blue-600'   },
 ]
 
 const TABS = [
