@@ -37,7 +37,7 @@ export default function MatchClock({ running, virtualStart, elapsed, onStart, on
 
     const id = setInterval(() => {
       const secs = Math.max(0, Math.floor((Date.now() - virtualStart) / 1000))
-      if (secs >= 50 * 60) { onResetRef.current(); return }
+      if (secs >= 100 * 60) { onResetRef.current(); return }
       setDisplay(secs)
       onMinuteRef.current(Math.floor(secs / 60))
     }, 500)
