@@ -1,20 +1,22 @@
 import { useEffect } from 'react'
-import { loadAllFromCloud, saveClockLocal } from '../storage'
-import { subscribeToClockFromCloud } from '../firebase'
+import { cacheTeamFromCloud, saveClockLocal } from '../storage'
+import { subscribeToClockFromCloud, subscribeToTeamFromCloud, retrySync } from '../firebase'
 
 // Each team owns its subscription, so adding/removing another team does not
 // reload or overwrite a match already in progress.
 export default function TeamSync({ teamId, setTeamData }) {
   useEffect(() => {
     let cancelled = false
-    loadAllFromCloud(teamId).then(data => {
-      if (cancelled) return
-      setTeamData(prev => ({ ...prev, [teamId]: { ...prev[teamId], ...data } }))
+    const unsubscribeTeam = subscribeToTeamFromCloud(teamId, (data, isCurrent) => {
+      if (cancelled || !data || !isCurrent()) return
+      const patch = cacheTeamFromCloud(teamId, data)
+      setTeamData(prev => cancelled || !isCurrent() ? prev :
+        { ...prev, [teamId]: { ...prev[teamId], ...patch } })
     })
-    const unsubscribe = subscribeToClockFromCloud(teamId, clockData => {
-      if (cancelled || !clockData) return
+    const unsubscribe = subscribeToClockFromCloud(teamId, (clockData, isCurrent) => {
+      if (cancelled || !clockData || !isCurrent()) return
       saveClockLocal(teamId, clockData)
-      setTeamData(prev => ({
+      setTeamData(prev => cancelled || !isCurrent() ? prev : ({
         ...prev,
         [teamId]: {
           ...prev[teamId],
@@ -24,7 +26,15 @@ export default function TeamSync({ teamId, setTeamData }) {
         },
       }))
     })
-    return () => { cancelled = true; unsubscribe() }
+    const retry = () => retrySync(teamId)
+    retry()
+    window.addEventListener('online', retry)
+    return () => {
+      cancelled = true
+      unsubscribe()
+      unsubscribeTeam()
+      window.removeEventListener('online', retry)
+    }
   }, [teamId, setTeamData])
   return null
 }

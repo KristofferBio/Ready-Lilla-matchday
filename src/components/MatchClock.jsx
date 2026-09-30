@@ -1,54 +1,31 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useEffectEvent } from 'react'
+
+function clockSeconds(running, virtualStart, elapsed) {
+  return running && virtualStart != null
+    ? Math.max(0, Math.floor((Date.now() - virtualStart) / 1000))
+    : elapsed ?? 0
+}
 
 export default function MatchClock({ running, virtualStart, elapsed, onStart, onPause, onReset, onMinute }) {
-  const onMinuteRef = useRef(onMinute)
-  onMinuteRef.current = onMinute
-  const onResetRef = useRef(onReset)
-  onResetRef.current = onReset
-  const onPauseRef = useRef(onPause)
-  onPauseRef.current = onPause
-
-  function computeDisplay() {
-    if (running && virtualStart != null)
-      return Math.max(0, Math.floor((Date.now() - virtualStart) / 1000))
-    return elapsed ?? 0
-  }
-
-  const [display, setDisplay] = useState(computeDisplay)
+  const [activeDisplay, setActiveDisplay] = useState(() => clockSeconds(running, virtualStart, elapsed))
+  const display = running ? activeDisplay : elapsed ?? 0
   const [confirmReset, setConfirmReset] = useState(false)
 
-  // Emit initial minute on mount
-  useEffect(() => { onMinuteRef.current(Math.floor(computeDisplay() / 60)) }, [])
+  const handleTick = useEffectEvent((enforceLimits) => {
+    const secs = clockSeconds(running, virtualStart, elapsed)
+    if (enforceLimits && secs >= 100 * 60) { onReset(); return }
+    if (enforceLimits && (elapsed ?? 0) < 35 * 60 && secs >= 35 * 60) { onPause(secs); return }
+    setActiveDisplay(secs)
+    onMinute(Math.floor(secs / 60))
+  })
 
-  // Sync display when paused state arrives (local or from cloud)
+  // Timer events synchronize wall-clock time without state updates during render.
+  // Effect Events keep callbacks current without resetting the interval each tick.
   useEffect(() => {
-    if (!running) {
-      const secs = elapsed ?? 0
-      setDisplay(secs)
-      onMinuteRef.current(Math.floor(secs / 60))
-    }
-  }, [running, elapsed])
-
-  // Run interval while clock is active
-  useEffect(() => {
-    if (!running || virtualStart == null) return
-    // Immediate sync
-    const initial = Math.max(0, Math.floor((Date.now() - virtualStart) / 1000))
-    setDisplay(initial)
-    onMinuteRef.current(Math.floor(initial / 60))
-
-    const startedBefore35 = (elapsed ?? 0) < 35 * 60
-
-    const id = setInterval(() => {
-      const secs = Math.max(0, Math.floor((Date.now() - virtualStart) / 1000))
-      if (secs >= 100 * 60) { onResetRef.current(); return }
-      if (startedBefore35 && secs >= 35 * 60) { onPauseRef.current(secs); return }
-      setDisplay(secs)
-      onMinuteRef.current(Math.floor(secs / 60))
-    }, 500)
-
-    return () => clearInterval(id)
-  }, [running, virtualStart])
+    const initial = setTimeout(() => handleTick(false), 0)
+    const interval = running && virtualStart != null ? setInterval(() => handleTick(true), 500) : null
+    return () => { clearTimeout(initial); if (interval !== null) clearInterval(interval) }
+  }, [running, virtualStart, elapsed])
 
   const mins = String(Math.floor(display / 60)).padStart(2, '0')
   const secs = String(display % 60).padStart(2, '0')

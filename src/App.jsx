@@ -5,11 +5,12 @@ import SubLog from './components/SubLog'
 import SquadManager from './components/SquadManager'
 import TeamManager from './components/TeamManager'
 import TeamSync from './components/TeamSync'
+import SyncStatus from './components/SyncStatus'
 import { loadTeams, saveTeams, TEAM_COLORS } from './teams'
 import { FORMATION_KEYS } from './formations'
 import {
   loadSquadLocal, loadFormationLocal, loadPositionsLocal, loadSubLogLocal, loadPlayTimeLocal, loadClockLocal,
-  saveSquad, saveFormation, savePositions, saveSubLog, savePlayTime, saveClockLocal,
+  saveMatchData,
 } from './storage'
 import { saveClockToCloud } from './firebase'
 
@@ -41,6 +42,7 @@ export default function App() {
   const [tab, setTab]               = useState('kampdag')
   const [teamData, setTeamData]     = useState(() => Object.fromEntries(teams.map(t => [t.id, emptyTeamState(t.id)])))
   const [minute, setMinute]         = useState(0)
+  const [saveError, setSaveError] = useState('')
 
   const selectedTeam = teams.find(t => t.id === activeTeam)
   const team = selectedTeam ? { ...selectedTeam, ...TEAM_COLORS[selectedTeam.color] } : null
@@ -70,7 +72,13 @@ export default function App() {
     setTeamData(prev => ({ ...prev, [teamId]: { ...prev[teamId], ...patch } }))
   }
 
-  function switchTeam(teamId) {
+  function persist(save) {
+    try { save(); setSaveError(''); return true }
+    catch { setSaveError('Kunne ikke lagre endringen på denne enheten. Endringen er ikke utført. Frigjør lagringsplass eller sjekk nettleserens lagring og prøv igjen.'); return false }
+  }
+
+  function handleSwitchTeam(event) {
+    const teamId = event.currentTarget.dataset.teamId
     setActiveTeam(teamId)
     const { clockRunning: r, clockVirtualStart: vs, clockElapsed: ce } = teamData[teamId]
     const secs = r && vs != null ? Math.floor((Date.now() - vs) / 1000) : ce ?? 0
@@ -80,7 +88,6 @@ export default function App() {
   // ── Squad ──────────────────────────────────────────────────────
 
   function handleSquadChange(newSquad) {
-    saveSquad(activeTeam, newSquad)
     const ids = new Set(newSquad.map(p => p.id))
     const cleanedPBF = Object.fromEntries(
       Object.entries(positionsByFormation ?? {}).map(([f, pos]) => [
@@ -88,8 +95,8 @@ export default function App() {
         Object.fromEntries(Object.entries(pos).filter(([, pid]) => ids.has(pid))),
       ])
     )
+    if (!persist(() => saveMatchData(activeTeam, { squad: newSquad, positions: cleanedPBF }))) return
     updateTeam(activeTeam, { squad: newSquad, positionsByFormation: cleanedPBF })
-    savePositions(activeTeam, cleanedPBF)
   }
 
   // ── Formation ─────────────────────────────────────────────────
@@ -113,14 +120,13 @@ export default function App() {
       if (!oldOnField.has(id)) newFieldStartMinute[id] = minute
     }
 
-    saveFormation(activeTeam, f)
-    savePlayTime(activeTeam, { playMinutes: newPlayMinutes, fieldStartMinute: newFieldStartMinute })
+    if (!persist(() => saveMatchData(activeTeam, { formation: f, playMinutes: newPlayMinutes, fieldStartMinute: newFieldStartMinute }))) return
     updateTeam(activeTeam, { formation: f, playMinutes: newPlayMinutes, fieldStartMinute: newFieldStartMinute })
   }
 
   // ── Positions ─────────────────────────────────────────────────
 
-  function handlePositionsChange(newPos) {
+  function handlePositionsChange(newPos, substitution = null) {
     const oldOnField = new Set(Object.values(positions))
     const newOnField = new Set(Object.values(newPos))
     const newPlayMinutes      = { ...playMinutes }
@@ -137,17 +143,15 @@ export default function App() {
     }
 
     const newPBF = { ...positionsByFormation, [formation]: newPos }
-    updateTeam(activeTeam, { positionsByFormation: newPBF, playMinutes: newPlayMinutes, fieldStartMinute: newFieldStartMinute })
-    savePositions(activeTeam, newPBF)
-    savePlayTime(activeTeam, { playMinutes: newPlayMinutes, fieldStartMinute: newFieldStartMinute })
-  }
-
-  // ── Substitution ──────────────────────────────────────────────
-
-  function handleSubstitution(inId, outId) {
-    const newLog = [...teamData[activeTeam].subLog, { minute, inId, outId }]
-    updateTeam(activeTeam, { subLog: newLog })
-    saveSubLog(activeTeam, newLog)
+    const newLog = substitution ? [...subLog, { minute, ...substitution }] : subLog
+    if (!persist(() => saveMatchData(activeTeam, {
+      positions: newPBF, playMinutes: newPlayMinutes,
+      fieldStartMinute: newFieldStartMinute, subLog: newLog,
+    }))) return
+    updateTeam(activeTeam, {
+      positionsByFormation: newPBF, playMinutes: newPlayMinutes,
+      fieldStartMinute: newFieldStartMinute, subLog: newLog,
+    })
   }
 
   // ── Reset ─────────────────────────────────────────────────────
@@ -158,15 +162,13 @@ export default function App() {
       newPlayMinutes[id] = (newPlayMinutes[id] ?? 0) + (minute - (fieldStartMinute[id] ?? 0))
     }
     const newPBF = { ...positionsByFormation, [formation]: {} }
+    if (!persist(() => saveMatchData(activeTeam, { positions: newPBF, playMinutes: newPlayMinutes, fieldStartMinute: {} }))) return
     updateTeam(activeTeam, { positionsByFormation: newPBF, playMinutes: newPlayMinutes, fieldStartMinute: {} })
-    savePositions(activeTeam, newPBF)
-    savePlayTime(activeTeam, { playMinutes: newPlayMinutes, fieldStartMinute: {} })
   }
 
   function handleResetSpilletid() {
+    if (!persist(() => saveMatchData(activeTeam, { playMinutes: {}, fieldStartMinute: {}, subLog: [] }))) return
     updateTeam(activeTeam, { playMinutes: {}, fieldStartMinute: {}, subLog: [] })
-    savePlayTime(activeTeam, { playMinutes: {}, fieldStartMinute: {} })
-    saveSubLog(activeTeam, [])
   }
 
   // ── Clock ─────────────────────────────────────────────────────
@@ -175,22 +177,19 @@ export default function App() {
     const elapsed     = teamData[activeTeam].clockElapsed ?? 0
     const virtualStart = Date.now() - elapsed * 1000
     const state       = { running: true, virtualStart, elapsed }
-    saveClockLocal(activeTeam, state)
-    saveClockToCloud(activeTeam, state)
+    if (!persist(() => saveClockToCloud(activeTeam, state))) return
     updateTeam(activeTeam, { clockRunning: true, clockVirtualStart: virtualStart })
   }
 
   function handleClockPause(currentElapsed) {
     const state = { running: false, virtualStart: null, elapsed: currentElapsed }
-    saveClockLocal(activeTeam, state)
-    saveClockToCloud(activeTeam, state)
+    if (!persist(() => saveClockToCloud(activeTeam, state))) return
     updateTeam(activeTeam, { clockRunning: false, clockVirtualStart: null, clockElapsed: currentElapsed })
   }
 
   function handleClockReset() {
     const state = { running: false, virtualStart: null, elapsed: 0 }
-    saveClockLocal(activeTeam, state)
-    saveClockToCloud(activeTeam, state)
+    if (!persist(() => saveClockToCloud(activeTeam, state))) return
     updateTeam(activeTeam, { clockRunning: false, clockVirtualStart: null, clockElapsed: 0 })
     setMinute(0)
   }
@@ -221,7 +220,8 @@ export default function App() {
           {teams.map(t => (
             <button
               key={t.id}
-              onClick={() => switchTeam(t.id)}
+              data-team-id={t.id}
+              onClick={handleSwitchTeam}
               className={`flex-1 py-2 rounded-xl font-bold text-sm transition-colors ${
                 activeTeam === t.id
                   ? `${TEAM_COLORS[t.color].activeColor} text-white`
@@ -236,6 +236,9 @@ export default function App() {
             {manageTeams && team ? 'Lukk lagadministrasjon' : 'Administrer lag'}
           </button>
         </div>
+
+        {team && <SyncStatus teamId={activeTeam} />}
+        {saveError && <p role="alert" className="px-4 py-2 text-sm text-red-300">{saveError}</p>}
 
         {(manageTeams || !team) && <TeamManager teams={teams} onTeamsChange={handleTeamsChange} />}
 
@@ -286,7 +289,6 @@ export default function App() {
               playMinutes={playMinutes}
               fieldStartMinute={fieldStartMinute}
               onPositionsChange={handlePositionsChange}
-              onSubstitution={handleSubstitution}
               onResetOppsett={handleResetOppsett}
               onResetSpilletid={handleResetSpilletid}
             />

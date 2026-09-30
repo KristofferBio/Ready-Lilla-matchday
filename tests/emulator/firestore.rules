@@ -1,0 +1,11 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Test-only rules. NEVER deploy these to the production project.
+    match /{collection}/{teamId} {
+      allow read: if collection in ['teams', 'clock'] && teamId.matches('test-.*');
+      allow write: if collection in ['teams', 'clock']
+        && teamId.matches('test-.*') && !teamId.matches('test-denied-.*');
+    }
+  }
+}

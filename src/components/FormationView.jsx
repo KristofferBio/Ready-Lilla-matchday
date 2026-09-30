@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { FORMATIONS } from '../formations'
 
 export default function FormationView({
@@ -10,7 +10,6 @@ export default function FormationView({
   playMinutes,
   fieldStartMinute,
   onPositionsChange,
-  onSubstitution,
   onResetOppsett,
   onResetSpilletid,
 }) {
@@ -18,13 +17,13 @@ export default function FormationView({
 
   // Always-current refs – event handlers never use stale closures
   const positionsRef     = useRef(positions)
-  positionsRef.current   = positions
   const formationRef     = useRef(formation)
-  formationRef.current   = formation
   const onPosChangeRef   = useRef(onPositionsChange)
-  onPosChangeRef.current = onPositionsChange
-  const onSubRef         = useRef(onSubstitution)
-  onSubRef.current       = onSubstitution
+  useLayoutEffect(() => {
+    positionsRef.current = positions
+    formationRef.current = formation
+    onPosChangeRef.current = onPositionsChange
+  }, [positions, formation, onPositionsChange])
 
   // Touch drag tracking via refs (no async state delay)
   const activeTouchDrag  = useRef(null) // { type: 'bench'|'field', playerId, source? }
@@ -58,8 +57,8 @@ export default function FormationView({
       : positions[selection.source] === selection.playerId
   ) ? selection : null
 
-  function handlePlayerClick(playerId, source = null) {
-    if (Date.now() < suppressClickUntil.current) return
+  function handlePlayerClick(playerId, source = null, event) {
+    if (event.timeStamp < suppressClickUntil.current) return
     if (selected?.playerId === playerId) {
       setSelection(null)
     } else if (selected && (selected.source == null) !== (source == null)) {
@@ -70,10 +69,10 @@ export default function FormationView({
     }
   }
 
-  function handlePositionClick(posId) {
-    if (Date.now() < suppressClickUntil.current) return
+  function handlePositionClick(posId, event) {
+    if (event.timeStamp < suppressClickUntil.current) return
     const playerId = positions[posId]
-    if (playerId) handlePlayerClick(playerId, posId)
+    if (playerId) handlePlayerClick(playerId, posId, event)
     else if (selected?.source == null && selected) {
       applyBenchDrop(posId, selected.playerId)
       setSelection(null)
@@ -139,8 +138,7 @@ export default function FormationView({
     const pos    = positionsRef.current
     const outId  = pos[posId]
     const newPos = { ...pos, [posId]: inId }
-    onPosChangeRef.current(newPos)
-    if (outId) onSubRef.current(inId, outId)
+    onPosChangeRef.current(newPos, outId ? { inId, outId } : null)
     setBenchTailIds(prev => { const s = new Set(prev); s.delete(inId); return s })
   }
 
@@ -179,11 +177,11 @@ export default function FormationView({
     removeTouchListeners()
     document.addEventListener('touchmove', moveHandler, { passive: false })
     document.addEventListener('touchend',  endHandler)
-    const cancel = () => {
+    const cancel = (event) => {
       activeTouchDrag.current = null
       setBenchDragging(null)
       setDragOver(null)
-      suppressClickUntil.current = Date.now() + 500
+      suppressClickUntil.current = event.timeStamp + 500
       removeTouchListeners()
     }
     document.addEventListener('touchcancel', cancel)
@@ -208,7 +206,7 @@ export default function FormationView({
       const { clientX, clientY } = e.changedTouches[0]
       const drag = activeTouchDrag.current
       if (drag && moved) {
-        suppressClickUntil.current = Date.now() + 500
+        suppressClickUntil.current = e.timeStamp + 500
         const posId = findPosAtPoint(clientX, clientY)
         if (posId) applyBenchDrop(posId, drag.playerId)
       }
@@ -239,7 +237,7 @@ export default function FormationView({
       const { clientX, clientY } = e.changedTouches[0]
       const drag = activeTouchDrag.current
       if (drag && moved) {
-        suppressClickUntil.current = Date.now() + 500
+        suppressClickUntil.current = e.timeStamp + 500
         if (isBelowField(clientY)) {
           applyFieldToBench(drag.source)
         } else {
@@ -273,20 +271,6 @@ export default function FormationView({
 
   const W = 340, H = 320
 
-  const ConfirmDialog = ({ onConfirm }) => (
-    <div className="bg-red-950 border border-red-700 rounded-xl px-4 py-3 flex items-center justify-between gap-3 w-full">
-      <span className="text-sm text-red-200">
-        {confirmReset === 'spilletid' ? 'Nullstill spilletid og byttelogg?' : 'Tøm kampoppsettet?'}
-      </span>
-      <div className="flex gap-2">
-        <button onClick={() => { setSelection(null); if (confirmReset === 'spilletid') setBenchTailIds(new Set()); onConfirm(); setConfirmReset(null) }}
-          className="bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-bold">Ja</button>
-        <button onClick={() => setConfirmReset(null)}
-          className="bg-gray-700 text-white px-3 py-2 rounded-lg text-sm">Avbryt</button>
-      </div>
-    </div>
-  )
-
   return (
     <div className="flex flex-col items-center gap-3 select-none w-full">
 
@@ -311,7 +295,20 @@ export default function FormationView({
       </div>
 
       {(confirmReset === 'oppsett' || confirmReset === 'spilletid') && (
-        <ConfirmDialog onConfirm={confirmReset === 'oppsett' ? onResetOppsett : onResetSpilletid} />
+        <div className="bg-red-950 border border-red-700 rounded-xl px-4 py-3 flex items-center justify-between gap-3 w-full">
+          <span className="text-sm text-red-200">
+            {confirmReset === 'spilletid' ? 'Nullstill spilletid og byttelogg?' : 'Tøm kampoppsettet?'}
+          </span>
+          <div className="flex gap-2">
+            <button onClick={() => {
+              setSelection(null)
+              if (confirmReset === 'spilletid') { setBenchTailIds(new Set()); onResetSpilletid() }
+              else onResetOppsett()
+              setConfirmReset(null)
+            }} className="bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-bold">Ja</button>
+            <button onClick={() => setConfirmReset(null)} className="bg-gray-700 text-white px-3 py-2 rounded-lg text-sm">Avbryt</button>
+          </div>
+        </div>
       )}
 
       <p className="text-xs text-center text-pink-200" aria-live="polite">
@@ -344,9 +341,9 @@ export default function FormationView({
               tabIndex={0}
               aria-label={player ? `${player.number} ${player.name}, ${pos.label}` : `Ledig posisjon: ${pos.label}`}
               aria-pressed={isSelected}
-              onClick={() => handlePositionClick(pos.id)}
+              onClick={e => handlePositionClick(pos.id, e)}
               onKeyDown={e => {
-                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handlePositionClick(pos.id) }
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handlePositionClick(pos.id, e) }
               }}
               onTouchStart={e => { if (player) onFieldTouchStart(e, playerId, pos.id) }}
               style={{ cursor: 'pointer', touchAction: 'none' }}
@@ -374,7 +371,7 @@ export default function FormationView({
                       setFieldDragging({ playerId, source: pos.id })
                       e.dataTransfer.effectAllowed = 'move'
                     }}
-                    onDragEnd={() => { suppressClickUntil.current = Date.now() + 500; setFieldDragging(null); setDragOver(null) }}
+                    onDragEnd={e => { suppressClickUntil.current = e.timeStamp + 500; setFieldDragging(null); setDragOver(null) }}
                     style={{ cursor: 'pointer' }}
                   />
                   <text x={cx} y={cy - 7} textAnchor="middle" dominantBaseline="middle"
@@ -434,14 +431,14 @@ export default function FormationView({
                 type="button"
                 key={player.id}
                 aria-pressed={selected?.playerId === player.id}
-                onClick={() => handlePlayerClick(player.id)}
+                onClick={e => handlePlayerClick(player.id, null, e)}
                 draggable
                 onDragStart={e => {
                   setSelection(null)
                   setBenchDragging(player.id)
                   e.dataTransfer.effectAllowed = 'move'
                 }}
-                onDragEnd={() => { suppressClickUntil.current = Date.now() + 500; setBenchDragging(null); setDragOver(null) }}
+                onDragEnd={e => { suppressClickUntil.current = e.timeStamp + 500; setBenchDragging(null); setDragOver(null) }}
                 onTouchStart={e => onBenchTouchStart(e, player.id)}
                 style={{ touchAction: 'none' }}
                 className={`flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer border text-white ${selected?.playerId === player.id ? 'bg-pink-600 border-pink-200 ring-2 ring-pink-300' : 'bg-gray-800 border-gray-700'}`}

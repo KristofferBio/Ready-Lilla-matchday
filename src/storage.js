@@ -1,4 +1,4 @@
-import { loadFromCloud, saveToCloud } from './firebase'
+import { saveToCloud, syncQueue } from './firebase'
 import { FORMATION_KEYS } from './formations'
 
 function validFormation(f) {
@@ -19,100 +19,70 @@ function keys(teamId) {
 // ── Local fallbacks ────────────────────────────────────────────
 
 export function loadSubLogLocal(teamId) {
+  const pending = syncQueue.snapshot(`teams/${teamId}`)
+  if (pending?.subLog !== undefined) return pending.subLog
   try { return JSON.parse(localStorage.getItem(keys(teamId).SUBLOG)) ?? [] } catch { return [] }
 }
 
 export function loadPlayTimeLocal(teamId) {
   try {
     const k = keys(teamId)
+    const pending = syncQueue.snapshot(`teams/${teamId}`)
     return {
-      playMinutes:     JSON.parse(localStorage.getItem(k.PLAY_MINUTES))    ?? {},
-      fieldStartMinute: JSON.parse(localStorage.getItem(k.FIELD_START_MIN)) ?? {},
+      playMinutes: pending?.playMinutes ?? JSON.parse(localStorage.getItem(k.PLAY_MINUTES)) ?? {},
+      fieldStartMinute: pending?.fieldStartMinute ?? JSON.parse(localStorage.getItem(k.FIELD_START_MIN)) ?? {},
     }
   } catch { return { playMinutes: {}, fieldStartMinute: {} } }
 }
 
 export function loadSquadLocal(teamId) {
+  const pending = syncQueue.snapshot(`teams/${teamId}`)
+  if (pending?.squad !== undefined) return pending.squad
   try { return JSON.parse(localStorage.getItem(keys(teamId).SQUAD)) ?? [] } catch { return [] }
 }
 export function loadFormationLocal(teamId) {
-  return localStorage.getItem(keys(teamId).FORMATION) ?? '3-3-2'
+  try { return validFormation(syncQueue.snapshot(`teams/${teamId}`)?.formation ?? localStorage.getItem(keys(teamId).FORMATION)) }
+  catch { return FORMATION_KEYS[0] }
 }
 export function loadPositionsLocal(teamId) {
+  const pending = syncQueue.snapshot(`teams/${teamId}`)
+  if (pending?.positions !== undefined) return pending.positions
   try { return JSON.parse(localStorage.getItem(keys(teamId).POSITIONS)) ?? {} } catch { return {} }
 }
 
-function cacheLocally(teamId, data) {
-  const k = keys(teamId)
-  if (data.squad           !== undefined) localStorage.setItem(k.SQUAD,           JSON.stringify(data.squad))
-  if (data.formation       !== undefined) localStorage.setItem(k.FORMATION,       data.formation)
-  if (data.positions       !== undefined) localStorage.setItem(k.POSITIONS,       JSON.stringify(data.positions))
-  if (data.subLog          !== undefined) localStorage.setItem(k.SUBLOG,          JSON.stringify(data.subLog))
-  if (data.playMinutes     !== undefined) localStorage.setItem(k.PLAY_MINUTES,    JSON.stringify(data.playMinutes))
-  if (data.fieldStartMinute !== undefined) localStorage.setItem(k.FIELD_START_MIN, JSON.stringify(data.fieldStartMinute))
+function localMatchSnapshot(teamId) {
+  return {
+    squad: loadSquadLocal(teamId), formation: loadFormationLocal(teamId),
+    positions: loadPositionsLocal(teamId), subLog: loadSubLogLocal(teamId),
+    ...loadPlayTimeLocal(teamId),
+  }
 }
 
-// ── Cloud load ─────────────────────────────────────────────────
-
-export async function loadAllFromCloud(teamId) {
-  const data = await loadFromCloud(teamId)
-  if (data) {
-    cacheLocally(teamId, data)
-    const local = loadPlayTimeLocal(teamId)
-    return {
-      squad:                data.squad                        ?? loadSquadLocal(teamId),
-      formation:            validFormation(data.formation)    ?? loadFormationLocal(teamId),
-      positionsByFormation: data.positions                    ?? loadPositionsLocal(teamId),
-      subLog:               data.subLog                       ?? loadSubLogLocal(teamId),
-      playMinutes:          data.playMinutes                  ?? local.playMinutes,
-      fieldStartMinute:     data.fieldStartMinute             ?? local.fieldStartMinute,
-    }
+// Only apply fields actually received; absent cloud fields must not reset
+// locally stored state. Called only after TeamSync's pending-write guard.
+export function cacheTeamFromCloud(teamId, data) {
+  syncQueue.cache(`teams/${teamId}`, { ...localMatchSnapshot(teamId), ...data })
+  const patch = {}
+  for (const field of ['squad', 'subLog', 'playMinutes', 'fieldStartMinute']) {
+    if (data[field] !== undefined) patch[field] = data[field]
   }
-  const local = loadPlayTimeLocal(teamId)
-  return {
-    squad:                loadSquadLocal(teamId),
-    formation:            validFormation(loadFormationLocal(teamId)),
-    positionsByFormation: loadPositionsLocal(teamId),
-    subLog:               loadSubLogLocal(teamId),
-    playMinutes:          local.playMinutes,
-    fieldStartMinute:     local.fieldStartMinute,
-  }
+  if (data.formation !== undefined) patch.formation = validFormation(data.formation)
+  if (data.positions !== undefined) patch.positionsByFormation = data.positions
+  return patch
 }
 
 // ── Save ───────────────────────────────────────────────────────
 
-export function saveSquad(teamId, squad) {
-  localStorage.setItem(keys(teamId).SQUAD, JSON.stringify(squad))
-  saveToCloud(teamId, { squad })
-}
-
-export function saveFormation(teamId, formation) {
-  localStorage.setItem(keys(teamId).FORMATION, formation)
-  saveToCloud(teamId, { formation })
-}
-
-export function savePositions(teamId, positions) {
-  localStorage.setItem(keys(teamId).POSITIONS, JSON.stringify(positions))
-  saveToCloud(teamId, { positions })
-}
-
-export function saveSubLog(teamId, log) {
-  localStorage.setItem(keys(teamId).SUBLOG, JSON.stringify(log))
-  saveToCloud(teamId, { subLog: log })
-}
-
-export function savePlayTime(teamId, { playMinutes, fieldStartMinute }) {
-  const k = keys(teamId)
-  localStorage.setItem(k.PLAY_MINUTES,    JSON.stringify(playMinutes))
-  localStorage.setItem(k.FIELD_START_MIN, JSON.stringify(fieldStartMinute))
-  saveToCloud(teamId, { playMinutes, fieldStartMinute })
+export function saveMatchData(teamId, data) {
+  // One atomic record contains both the local snapshot and the pending patch.
+  saveToCloud(teamId, data, localMatchSnapshot(teamId))
 }
 
 // ── Clock (per-team, local only — cloud handled via subscribeToClockFromCloud) ──
 
 export function loadClockLocal(teamId) {
   try {
-    const saved = JSON.parse(localStorage.getItem(`kampstotte_${teamId}_clock`))
+    const saved = syncQueue.snapshot(`clock/${teamId}`) ?? JSON.parse(localStorage.getItem(`kampstotte_${teamId}_clock`))
     if (!saved) return { running: false, elapsed: 0, virtualStart: null }
     const elapsed = saved.running && saved.virtualStart != null
       ? Math.max(0, Math.floor((Date.now() - saved.virtualStart) / 1000))
@@ -126,5 +96,5 @@ export function loadClockLocal(teamId) {
 }
 
 export function saveClockLocal(teamId, clockState) {
-  localStorage.setItem(`kampstotte_${teamId}_clock`, JSON.stringify(clockState))
+  syncQueue.cache(`clock/${teamId}`, clockState)
 }

@@ -3,9 +3,13 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   base: '/Ready-Lilla-matchday/',
   plugins: [
+    ...(mode === 'e2e' ? [{
+      name: 'e2e-network-safety',
+      transformIndexHtml: html => html.replace('<head>', '<head><meta http-equiv="Content-Security-Policy" content="connect-src \'self\' http://127.0.0.1:8085 ws://127.0.0.1:8085; img-src \'self\' data:;" />'),
+    }] : []),
     react(),
     tailwindcss(),
     VitePWA({
@@ -41,4 +45,4 @@ export default defineConfig({
       },
     }),
   ],
-})
+}))
