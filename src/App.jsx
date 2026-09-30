@@ -1,20 +1,17 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import MatchClock from './components/MatchClock'
 import FormationView from './components/FormationView'
 import SubLog from './components/SubLog'
 import SquadManager from './components/SquadManager'
+import TeamManager from './components/TeamManager'
+import TeamSync from './components/TeamSync'
+import { loadTeams, saveTeams, TEAM_COLORS } from './teams'
 import { FORMATION_KEYS } from './formations'
 import {
-  loadAllFromCloud,
   loadSquadLocal, loadFormationLocal, loadPositionsLocal, loadSubLogLocal, loadPlayTimeLocal, loadClockLocal,
   saveSquad, saveFormation, savePositions, saveSubLog, savePlayTime, saveClockLocal,
 } from './storage'
-import { subscribeToClockFromCloud, saveClockToCloud } from './firebase'
-
-const TEAMS = [
-  { id: 'ready-lilla',  name: 'Ready Lilla',  activeColor: 'bg-purple-500', textColor: 'text-purple-300', navBg: 'bg-purple-950', borderColor: 'border-purple-400', formBg: 'bg-purple-600' },
-  { id: 'ready-gronn',  name: 'Ready Grønn',  activeColor: 'bg-green-600',  textColor: 'text-green-300',  navBg: 'bg-green-950',  borderColor: 'border-green-400',  formBg: 'bg-green-600'  },
-]
+import { saveClockToCloud } from './firebase'
 
 const TABS = [
   { id: 'kampdag', label: 'Kampdag' },
@@ -38,45 +35,36 @@ function emptyTeamState(teamId) {
 }
 
 export default function App() {
-  const [activeTeam, setActiveTeam] = useState('ready-lilla')
+  const [teams, setTeams] = useState(loadTeams)
+  const [activeTeam, setActiveTeam] = useState(() => teams[0]?.id ?? null)
+  const [manageTeams, setManageTeams] = useState(false)
   const [tab, setTab]               = useState('kampdag')
-  const [teamData, setTeamData]     = useState({
-    'ready-lilla': emptyTeamState('ready-lilla'),
-    'ready-gronn': emptyTeamState('ready-gronn'),
-  })
+  const [teamData, setTeamData]     = useState(() => Object.fromEntries(teams.map(t => [t.id, emptyTeamState(t.id)])))
   const [minute, setMinute]         = useState(0)
 
-  const team = TEAMS.find(t => t.id === activeTeam)
+  const selectedTeam = teams.find(t => t.id === activeTeam)
+  const team = selectedTeam ? { ...selectedTeam, ...TEAM_COLORS[selectedTeam.color] } : null
   const { squad, formation, positionsByFormation, subLog, playMinutes, fieldStartMinute,
-          clockRunning, clockVirtualStart, clockElapsed } = teamData[activeTeam]
+          clockRunning, clockVirtualStart, clockElapsed } = teamData[activeTeam] ?? {}
   const positions = positionsByFormation?.[formation] ?? {}
 
-  // Load both teams from cloud on startup + subscribe to per-team clock
-  useEffect(() => {
-    TEAMS.forEach(t => {
-      loadAllFromCloud(t.id).then(data => {
-        setTeamData(prev => ({ ...prev, [t.id]: { ...prev[t.id], ...data } }))
-      })
-    })
-
-    const unsubs = TEAMS.map(t =>
-      subscribeToClockFromCloud(t.id, clockData => {
-        if (!clockData) return
-        saveClockLocal(t.id, clockData)
-        setTeamData(prev => ({
-          ...prev,
-          [t.id]: {
-            ...prev[t.id],
-            clockRunning:      clockData.running      ?? false,
-            clockVirtualStart: clockData.virtualStart ?? null,
-            clockElapsed:      clockData.elapsed      ?? 0,
-          },
-        }))
-      })
-    )
-
-    return () => unsubs.forEach(u => u())
-  }, [])
+  function handleTeamsChange(nextTeams) {
+    saveTeams(nextTeams)
+    setTeamData(prev => ({
+      ...prev,
+      ...Object.fromEntries(nextTeams.filter(t => !prev[t.id]).map(t => [t.id, emptyTeamState(t.id)])),
+    }))
+    setTeams(nextTeams)
+    if (!nextTeams.some(t => t.id === activeTeam)) {
+      const nextId = nextTeams[0]?.id ?? null
+      setActiveTeam(nextId)
+      const nextClock = nextId ? teamData[nextId] : null
+      const seconds = nextClock?.clockRunning && nextClock.clockVirtualStart != null
+        ? Math.max(0, Math.floor((Date.now() - nextClock.clockVirtualStart) / 1000))
+        : nextClock?.clockElapsed ?? 0
+      setMinute(Math.floor(seconds / 60))
+    }
+  }
 
   function updateTeam(teamId, patch) {
     setTeamData(prev => ({ ...prev, [teamId]: { ...prev[teamId], ...patch } }))
@@ -175,14 +163,10 @@ export default function App() {
     savePlayTime(activeTeam, { playMinutes: newPlayMinutes, fieldStartMinute: {} })
   }
 
-  function handleResetLogg() {
-    updateTeam(activeTeam, { subLog: [] })
-    saveSubLog(activeTeam, [])
-  }
-
   function handleResetSpilletid() {
-    updateTeam(activeTeam, { playMinutes: {}, fieldStartMinute: {} })
+    updateTeam(activeTeam, { playMinutes: {}, fieldStartMinute: {}, subLog: [] })
     savePlayTime(activeTeam, { playMinutes: {}, fieldStartMinute: {} })
+    saveSubLog(activeTeam, [])
   }
 
   // ── Clock ─────────────────────────────────────────────────────
@@ -213,10 +197,12 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-svh bg-gray-950 text-white">
+      {teams.map(t => <TeamSync key={t.id} teamId={t.id} setTeamData={setTeamData} />)}
 
       {/* ── Clock – always visible ── */}
-      <div className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex justify-center">
+      {team && <div className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex justify-center">
         <MatchClock
+          key={activeTeam}
           running={clockRunning ?? false}
           virtualStart={clockVirtualStart ?? null}
           elapsed={clockElapsed ?? 0}
@@ -225,30 +211,36 @@ export default function App() {
           onReset={handleClockReset}
           onMinute={setMinute}
         />
-      </div>
+      </div>}
 
       {/* ── Scrollable content ── */}
       <main className="flex-1 overflow-y-auto pb-8">
 
         {/* ── Team selector (scrolls away) ── */}
-        <div className="bg-gray-900 border-b border-gray-800 flex gap-2 px-4 py-2">
-          {TEAMS.map(t => (
+        <div className="bg-gray-900 border-b border-gray-800 flex flex-wrap gap-2 px-4 py-2">
+          {teams.map(t => (
             <button
               key={t.id}
               onClick={() => switchTeam(t.id)}
               className={`flex-1 py-2 rounded-xl font-bold text-sm transition-colors ${
                 activeTeam === t.id
-                  ? `${t.activeColor} text-white`
+                  ? `${TEAM_COLORS[t.color].activeColor} text-white`
                   : 'bg-gray-800 text-gray-400'
               }`}
             >
               {t.name}
             </button>
           ))}
+          <button type="button" onClick={() => setManageTeams(value => !value)} aria-expanded={manageTeams || !team}
+            className="w-full py-2 rounded-lg text-sm text-gray-300 bg-gray-800">
+            {manageTeams && team ? 'Lukk lagadministrasjon' : 'Administrer lag'}
+          </button>
         </div>
 
+        {(manageTeams || !team) && <TeamManager teams={teams} onTeamsChange={handleTeamsChange} />}
+
         {/* ── Tab bar (scrolls away) ── */}
-        <nav className={`border-b border-gray-800 flex ${team.navBg}`}>
+        {team && <nav className={`border-b border-gray-800 flex ${team.navBg}`}>
           {TABS.map(t => (
             <button
               key={t.id}
@@ -262,9 +254,9 @@ export default function App() {
               {t.label}
             </button>
           ))}
-        </nav>
+        </nav>}
 
-        {tab === 'kampdag' && (
+        {team && tab === 'kampdag' && (
           <div className="p-3 max-w-sm mx-auto flex flex-col gap-4">
 
             {/* Formation selector */}
@@ -285,6 +277,7 @@ export default function App() {
             </div>
 
             <FormationView
+              key={`${activeTeam}-${formation}`}
               formation={formation}
               positions={positions}
               squad={squad}
@@ -295,7 +288,6 @@ export default function App() {
               onPositionsChange={handlePositionsChange}
               onSubstitution={handleSubstitution}
               onResetOppsett={handleResetOppsett}
-              onResetLogg={handleResetLogg}
               onResetSpilletid={handleResetSpilletid}
             />
 
@@ -303,8 +295,8 @@ export default function App() {
           </div>
         )}
 
-        {tab === 'squad' && (
-          <SquadManager squad={squad} onSquadChange={handleSquadChange} />
+        {team && tab === 'squad' && (
+          <SquadManager key={activeTeam} squad={squad} onSquadChange={handleSquadChange} />
         )}
       </main>
     </div>

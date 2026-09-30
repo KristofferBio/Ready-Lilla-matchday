@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { FORMATIONS } from '../formations'
 
 export default function FormationView({
@@ -12,7 +12,6 @@ export default function FormationView({
   onPositionsChange,
   onSubstitution,
   onResetOppsett,
-  onResetLogg,
   onResetSpilletid,
 }) {
   const svgRef = useRef(null)
@@ -30,6 +29,16 @@ export default function FormationView({
   // Touch drag tracking via refs (no async state delay)
   const activeTouchDrag  = useRef(null) // { type: 'bench'|'field', playerId, source? }
   const touchListeners   = useRef(null) // { move, end } – for cleanup
+  const suppressClickUntil = useRef(0)
+  const [selection, setSelection] = useState(null)
+
+  useEffect(() => () => {
+    const listeners = touchListeners.current
+    if (!listeners) return
+    document.removeEventListener('touchmove', listeners.move)
+    document.removeEventListener('touchend', listeners.end)
+    document.removeEventListener('touchcancel', listeners.cancel)
+  }, [])
 
   // Mouse drag state (for desktop HTML5 DnD)
   const [fieldDragging, setFieldDragging] = useState(null)
@@ -38,11 +47,38 @@ export default function FormationView({
 
   // Visual feedback only
   const [dragOver, setDragOver] = useState(null)
-  const [confirmReset, setConfirmReset] = useState(null) // null | 'oppsett' | 'logg'
+  const [confirmReset, setConfirmReset] = useState(null) // null | 'oppsett' | 'spilletid'
 
   const formDef    = FORMATIONS[formation]
   const playerById = Object.fromEntries(squad.map(p => [p.id, p]))
   const onField    = new Set(Object.values(positions))
+  const selected = selection && playerById[selection.playerId] && (
+    selection.source == null
+      ? !onField.has(selection.playerId)
+      : positions[selection.source] === selection.playerId
+  ) ? selection : null
+
+  function handlePlayerClick(playerId, source = null) {
+    if (Date.now() < suppressClickUntil.current) return
+    if (selected?.playerId === playerId) {
+      setSelection(null)
+    } else if (selected && (selected.source == null) !== (source == null)) {
+      applyBenchDrop(source ?? selected.source, source == null ? playerId : selected.playerId)
+      setSelection(null)
+    } else {
+      setSelection({ playerId, source })
+    }
+  }
+
+  function handlePositionClick(posId) {
+    if (Date.now() < suppressClickUntil.current) return
+    const playerId = positions[posId]
+    if (playerId) handlePlayerClick(playerId, posId)
+    else if (selected?.source == null && selected) {
+      applyBenchDrop(posId, selected.playerId)
+      setSelection(null)
+    }
+  }
 
   // Last sub-off index per player (higher = more recently benched)
   const lastSubOffIndex = {}
@@ -99,6 +135,7 @@ export default function FormationView({
   // ── Apply helpers (always use refs) ───────────────────────────
 
   function applyBenchDrop(posId, inId) {
+    setSelection(null)
     const pos    = positionsRef.current
     const outId  = pos[posId]
     const newPos = { ...pos, [posId]: inId }
@@ -108,6 +145,7 @@ export default function FormationView({
   }
 
   function applyFieldDrop(posId, playerId, source) {
+    setSelection(null)
     if (posId === source) return
     const newPos   = { ...positionsRef.current }
     const existing = newPos[posId]
@@ -117,6 +155,7 @@ export default function FormationView({
   }
 
   function applyFieldToBench(source) {
+    setSelection(null)
     const newPos   = { ...positionsRef.current }
     const playerId = newPos[source]
     delete newPos[source]
@@ -132,6 +171,7 @@ export default function FormationView({
     if (!touchListeners.current) return
     document.removeEventListener('touchmove', touchListeners.current.move)
     document.removeEventListener('touchend',  touchListeners.current.end)
+    document.removeEventListener('touchcancel', touchListeners.current.cancel)
     touchListeners.current = null
   }
 
@@ -139,14 +179,27 @@ export default function FormationView({
     removeTouchListeners()
     document.addEventListener('touchmove', moveHandler, { passive: false })
     document.addEventListener('touchend',  endHandler)
-    touchListeners.current = { move: moveHandler, end: endHandler }
+    const cancel = () => {
+      activeTouchDrag.current = null
+      setBenchDragging(null)
+      setDragOver(null)
+      suppressClickUntil.current = Date.now() + 500
+      removeTouchListeners()
+    }
+    document.addEventListener('touchcancel', cancel)
+    touchListeners.current = { move: moveHandler, end: endHandler, cancel }
   }
 
-  function onBenchTouchStart(playerId) {
+  function onBenchTouchStart(e, playerId) {
+    const start = e.touches[0]
+    let moved = false
     activeTouchDrag.current = { type: 'bench', playerId }
-    setBenchDragging(playerId) // for visual state
 
     function move(e) {
+      if (!moved && Math.hypot(e.touches[0].clientX - start.clientX, e.touches[0].clientY - start.clientY) < 8) return
+      moved = true
+      setSelection(null)
+      setBenchDragging(playerId)
       e.preventDefault()
       setDragOver(findPosAtPoint(e.touches[0].clientX, e.touches[0].clientY))
     }
@@ -154,7 +207,8 @@ export default function FormationView({
     function end(e) {
       const { clientX, clientY } = e.changedTouches[0]
       const drag = activeTouchDrag.current
-      if (drag) {
+      if (drag && moved) {
+        suppressClickUntil.current = Date.now() + 500
         const posId = findPosAtPoint(clientX, clientY)
         if (posId) applyBenchDrop(posId, drag.playerId)
       }
@@ -167,10 +221,15 @@ export default function FormationView({
     attachTouchListeners(move, end)
   }
 
-  function onFieldTouchStart(playerId, source) {
+  function onFieldTouchStart(e, playerId, source) {
+    const start = e.touches[0]
+    let moved = false
     activeTouchDrag.current = { type: 'field', playerId, source }
 
     function move(e) {
+      if (!moved && Math.hypot(e.touches[0].clientX - start.clientX, e.touches[0].clientY - start.clientY) < 8) return
+      moved = true
+      setSelection(null)
       e.preventDefault()
       const { clientX, clientY } = e.touches[0]
       setDragOver(isBelowField(clientY) ? 'bench' : findPosAtPoint(clientX, clientY))
@@ -179,7 +238,8 @@ export default function FormationView({
     function end(e) {
       const { clientX, clientY } = e.changedTouches[0]
       const drag = activeTouchDrag.current
-      if (drag) {
+      if (drag && moved) {
+        suppressClickUntil.current = Date.now() + 500
         if (isBelowField(clientY)) {
           applyFieldToBench(drag.source)
         } else {
@@ -216,10 +276,10 @@ export default function FormationView({
   const ConfirmDialog = ({ onConfirm }) => (
     <div className="bg-red-950 border border-red-700 rounded-xl px-4 py-3 flex items-center justify-between gap-3 w-full">
       <span className="text-sm text-red-200">
-        {confirmReset === 'logg' ? 'Nullstill bytteloggen?' : confirmReset === 'spilletid' ? 'Nullstill spilletid?' : 'Tøm kampoppsettet?'}
+        {confirmReset === 'spilletid' ? 'Nullstill spilletid og byttelogg?' : 'Tøm kampoppsettet?'}
       </span>
       <div className="flex gap-2">
-        <button onClick={() => { onConfirm(); setConfirmReset(null) }}
+        <button onClick={() => { setSelection(null); if (confirmReset === 'spilletid') setBenchTailIds(new Set()); onConfirm(); setConfirmReset(null) }}
           className="bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-bold">Ja</button>
         <button onClick={() => setConfirmReset(null)}
           className="bg-gray-700 text-white px-3 py-2 rounded-lg text-sm">Avbryt</button>
@@ -254,6 +314,12 @@ export default function FormationView({
         <ConfirmDialog onConfirm={confirmReset === 'oppsett' ? onResetOppsett : onResetSpilletid} />
       )}
 
+      <p className="text-xs text-center text-pink-200" aria-live="polite">
+        {selected
+          ? `${playerById[selected.playerId].name} valgt – trykk på en spiller ${selected.source == null ? 'på banen' : 'på benken'} for å bytte. Trykk igjen for å avbryte.`
+          : 'Trykk på en spiller på benken og en på banen for å bytte – eller motsatt.'}
+      </p>
+
       <svg
         ref={svgRef}
         viewBox={`0 0 ${W} ${H}`}
@@ -269,10 +335,21 @@ export default function FormationView({
           const cx       = (pos.x / 100) * W
           const cy       = (pos.y / 100) * H
           const isOver   = dragOver === pos.id
+          const isSelected = selected?.playerId === playerId && !!player
 
           return (
             <g
               key={pos.id}
+              role="button"
+              tabIndex={0}
+              aria-label={player ? `${player.number} ${player.name}, ${pos.label}` : `Ledig posisjon: ${pos.label}`}
+              aria-pressed={isSelected}
+              onClick={() => handlePositionClick(pos.id)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handlePositionClick(pos.id) }
+              }}
+              onTouchStart={e => { if (player) onFieldTouchStart(e, playerId, pos.id) }}
+              style={{ cursor: 'pointer', touchAction: 'none' }}
               onDragOver={e => { e.preventDefault(); setDragOver(pos.id) }}
               onDragLeave={() => setDragOver(null)}
               onDrop={() => onFieldMouseDrop(pos.id)}
@@ -288,24 +365,24 @@ export default function FormationView({
                 <>
                   <circle
                     cx={cx} cy={cy} r={24}
-                    fill="#1d4ed8"
-                    stroke="#60a5fa"
+                    fill={isSelected ? '#ec4899' : '#1d4ed8'}
+                    stroke={isSelected ? '#fbcfe8' : '#60a5fa'}
                     strokeWidth="2.5"
                     draggable
                     onDragStart={e => {
+                      setSelection(null)
                       setFieldDragging({ playerId, source: pos.id })
                       e.dataTransfer.effectAllowed = 'move'
                     }}
-                    onDragEnd={() => { setFieldDragging(null); setDragOver(null) }}
-                    onTouchStart={() => onFieldTouchStart(playerId, pos.id)}
-                    style={{ cursor: 'grab' }}
+                    onDragEnd={() => { suppressClickUntil.current = Date.now() + 500; setFieldDragging(null); setDragOver(null) }}
+                    style={{ cursor: 'pointer' }}
                   />
                   <text x={cx} y={cy - 7} textAnchor="middle" dominantBaseline="middle"
                     fontSize="13" fontWeight="bold" fill="white" style={{ pointerEvents: 'none' }}>
                     {player.number}
                   </text>
                   <text x={cx} y={cy + 9} textAnchor="middle" dominantBaseline="middle"
-                    fontSize="9.5" fill="#bfdbfe" style={{ pointerEvents: 'none' }}>
+                    fontSize="9.5" fill={isSelected ? '#fff' : '#bfdbfe'} style={{ pointerEvents: 'none' }}>
                     {player.name.length > 8 ? player.name.slice(0, 7) + '.' : player.name}
                   </text>
                   {(() => {
@@ -353,38 +430,35 @@ export default function FormationView({
         ) : (
           <div className="flex flex-wrap gap-2">
             {bench.map(player => (
-              <div
+              <button
+                type="button"
                 key={player.id}
+                aria-pressed={selected?.playerId === player.id}
+                onClick={() => handlePlayerClick(player.id)}
                 draggable
                 onDragStart={e => {
+                  setSelection(null)
                   setBenchDragging(player.id)
                   e.dataTransfer.effectAllowed = 'move'
                 }}
-                onDragEnd={() => { setBenchDragging(null); setDragOver(null) }}
-                onTouchStart={() => onBenchTouchStart(player.id)}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl cursor-grab active:cursor-grabbing bg-gray-800 border border-gray-700 text-white"
+                onDragEnd={() => { suppressClickUntil.current = Date.now() + 500; setBenchDragging(null); setDragOver(null) }}
+                onTouchStart={e => onBenchTouchStart(e, player.id)}
+                style={{ touchAction: 'none' }}
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer border text-white ${selected?.playerId === player.id ? 'bg-pink-600 border-pink-200 ring-2 ring-pink-300' : 'bg-gray-800 border-gray-700'}`}
               >
-                <span className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold text-sm shrink-0">
+                <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${selected?.playerId === player.id ? 'bg-pink-500' : 'bg-blue-600'}`}>
                   {player.number}
                 </span>
                 <span className="font-medium text-sm">{player.name}</span>
                 {(() => { const t = playerTime(player.id, false); return t > 0 && (
                   <span className="ml-auto text-xs font-bold text-green-400">{t}m</span>
                 )})()}
-              </div>
+              </button>
             ))}
           </div>
         )}
       </div>
 
-      <div
-        className="w-full text-center text-xs py-2 rounded-lg cursor-pointer select-none bg-yellow-500 text-black hover:bg-yellow-400 transition-colors"
-        onClick={() => setConfirmReset('logg')}
-      >
-        Nullstill byttelogg
-      </div>
-
-      {confirmReset === 'logg' && <ConfirmDialog onConfirm={onResetLogg} />}
     </div>
   )
 }

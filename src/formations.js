@@ -25,7 +25,7 @@ export const FORMATIONS = {
       { id: 'dm',  label: 'MD',  x: 50, y: 56 },
       { id: 'am',  label: 'MO',  x: 50, y: 38 },
       { id: 'fl',  label: 'VV',  x: 18, y: 27 },
-      { id: 'fc',  label: 'S',   x: 50, y: 10 },
+      { id: 'fc',  label: 'S',   x: 50, y: 17 },
       { id: 'fr',  label: 'VH',  x: 82, y: 27 },
     ],
   },
