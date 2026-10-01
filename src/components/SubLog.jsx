@@ -1,13 +1,10 @@
 export default function SubLog({ log, squad }) {
   const playerById = Object.fromEntries(squad.map(p => [p.id, p]))
 
-  if (log.length === 0) return null
+  if (log.length === 0) return <p className="py-4 text-sm text-gray-400">Ingen bytter registrert.</p>
 
   return (
     <div className="w-full">
-      <p className="text-xs uppercase tracking-widest text-gray-500 mb-2 font-bold">
-        Byttelogg
-      </p>
       <div className="space-y-2">
         {log.map((entry, i) => {
           const inn = playerById[entry.inId]

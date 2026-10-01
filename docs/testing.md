@@ -2,7 +2,7 @@
 
 ## Avgrensning
 
-Brukeren godkjente punkt 1 i forbedringsplanen: test offline/synk og rett kvalitetsfeil. Arbeidet dekker OpenSpec-gruppe 1 og den automatiserbare delen av gruppe 2. Innlogging, delte lag, produksjonsregler og publisering er ikke godkjent eller endret.
+Brukeren godkjente punkt 1 i forbedringsplanen: test offline/synk og rett kvalitetsfeil. Arbeidet dekker OpenSpec-gruppe 1 og den automatiserbare delen av gruppe 2. Brukeren pushet senere commit `4ac8dda`, som utløste vellykket Pages-publisering. Innlogging, delte lag og produksjonsregler er ikke endret.
 
 ## Sikkerhetssperrer
 
@@ -58,12 +58,22 @@ Miljø: Windows, Node 25.9.0, Vite 8.3.1, Firebase SDK 12.12.1, Firebase CLI 15.
 | Flere faner | Bekreftet endring vises i begge faner uten duplisert logg; dette er ikke bevis på konfliktfri samtidig redigering. |
 | Ny appversjon | Ny service worker blir ventende; åpent kampvindu lastes ikke om og ventekøen beholdes. |
 | Fysisk Safari/iPhone og Chrome/Android | **Ikke testet**; krever manuell kontroll nedenfor. |
-| GitHub Actions | Workflow er lagt til og tilsvarende grunnkommandoer testet lokalt; **ingen fjernkjøring verifisert** fordi endringene ikke er pushet. |
+| GitHub Actions | **Bestått** for commit `4ac8dda`: ren installasjon, lint, Node-tester, bygg, Chromium-/emulatortester og Pages-publisering. [Kjøring 36747091718](https://github.com/KristofferBio/Ready-Lilla-matchday/actions/runs/36747091718). |
 | Produksjonsregler og reelle kampdata | Ikke endret, ikke brukt til skrivetester. |
 
 Endelig samlet kjøring: **11 av 11 E2E-tester bestått**, i tillegg til grønn lint, 17 Node-tester og produksjonsbygg. Status er også oppdatert i OpenSpec-fremdriften. PWA-bygget gir fortsatt en størrelse-advarsel for hoved-JavaScript (>500 kB); dette er ikke en byggfeil.
 
 ## Manuell mobilkontroll før kampbruk
+
+### Visuell oppfølging – 1. oktober 2026
+
+Kampdag er endret til fast kampflate. Lagvalg og formasjon ligger i Tropp; forklaringsteksten er fjernet. Benken har fire like knapper per rad og to faste synlige rader. Logg og resetbekreftelser åpnes som tilgjengelige overliggende paneler. Skjermtilpasset SVG bevarer sirkler og bruker samme koordinater til rendering og touchmål.
+
+Lokalt består grønn lint, 17 Node-tester, produksjonsbygg og 20 Chromium-/emulatortester (11 tidligere P0-tester + 9 layouttester). Layout er målt ved 320 × 568, 375 × 667, 390 × 844 og 844 × 390 CSS-piksler: ingen rulling av kampflaten, like benkknapper og samme bane-/benkrektangler før/etter bytte og loggåpning. Alle formasjoner er kontrollert for avkuttede tidsmerker. Stor benk testes med intern rulling, touch-sveip og langt trykk før drag, uten ekstra byttelogglinje. Panelenes tittel, fokus, Lukk og Escape testes.
+
+Dette er emulert Chromium-touch, ikke fysisk iPhone-/Android-testing. Endringen er lokal og ikke publisert i denne oppgaven; CI-kjøringen fra 30. september gjelder forrige commit, ikke denne visuelle endringen. Lokal forhåndsvisning: `http://localhost:5174/Ready-Lilla-matchday/`.
+
+### Sjekkliste på faktisk mobil
 
 Bruk et særskilt testlag etter godkjent publisering, ikke en pågående kamp.
 

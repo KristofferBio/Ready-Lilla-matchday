@@ -80,7 +80,8 @@ export async function prepare(context, id, localData = null) {
 
 export async function openMatch(page) {
   await page.goto('./')
-  await expect(page.getByRole('button', { name: 'Testlag', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Kampdag', exact: true })).toBeVisible()
+  await expect(page.locator('.match-pitch')).toBeVisible()
 }
 
 export async function synced(page) {
@@ -90,8 +91,17 @@ export async function synced(page) {
 export async function substitute(page, reverse = false) {
   const bench = page.getByRole('button', { name: /^2\s*Benk/ })
   const field = page.getByRole('button', { name: '1 Felt, S', exact: true })
-  if (reverse) { await field.click(); await bench.click() }
-  else { await bench.click(); await field.click() }
+  if (reverse) {
+    await field.click()
+    await expect(field).toHaveAttribute('aria-pressed', 'true')
+    await expect(field.locator('circle').nth(1)).toHaveAttribute('fill', '#ec4899')
+    await bench.click()
+  } else {
+    await bench.click()
+    await expect(bench).toHaveAttribute('aria-pressed', 'true')
+    await expect(bench).toHaveClass(/bg-pink-600/)
+    await field.click()
+  }
   await expect(page.getByRole('button', { name: '2 Benk, S', exact: true })).toBeVisible()
 }
 

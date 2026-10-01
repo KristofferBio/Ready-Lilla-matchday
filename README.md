@@ -31,6 +31,10 @@ Se status med `openspec status --change app-improvement-roadmap` og valider plan
 
 ## Lagadministrasjon
 
+Lagvalg, lagadministrasjon og formasjonsvalg ligger i **Tropp**. **Kampdag** viser en fast, skjermtilpasset bane og benk med fire like store spillerknapper per rad. Benken reserverer to rader; ved flere enn åtte benkspillere ruller bare benken. På mobil kan du sveipe for å rulle en stor benk og holde inne kort før du drar en spiller. Vanlige trykkbytter fungerer som før.
+
+Bytteloggen åpnes med «Byttelogg» i et panel over kampflaten. «Nullstill…» åpner nullstillingshandlingene med bekreftelse. Ingen av panelene skyver bane eller benk. På lave, brede skjermer vises benken ved siden av banen.
+
 Bruk «Administrer lag» for å legge til lag med navn og farge, eller fjerne lag fra listen med bekreftelse. Ready Lilla og Ready Grønn brukes bare som startlag når ingen lagliste er lagret. En tom lagliste beholdes også etter omlasting.
 
 Laglisten lagres lokalt per nettleser/enhet og synkroniseres foreløpig ikke. Fjerning sletter ikke lokale kampdata eller dokumenter i Firebase. Et nytt lag får en unik ID og starter med tom tropp; å opprette samme navn igjen gjenoppretter ikke det fjernede laget.

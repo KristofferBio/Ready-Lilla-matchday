@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import MatchClock from './components/MatchClock'
 import FormationView from './components/FormationView'
-import SubLog from './components/SubLog'
 import SquadManager from './components/SquadManager'
 import TeamManager from './components/TeamManager'
 import TeamSync from './components/TeamSync'
@@ -195,13 +194,14 @@ export default function App() {
   }
 
   return (
-    <div className="flex flex-col h-svh bg-gray-950 text-white">
+    <div className="app-shell bg-gray-950 text-white">
       {teams.map(t => <TeamSync key={t.id} teamId={t.id} setTeamData={setTeamData} />)}
 
-      {/* ── Clock – always visible ── */}
-      {team && <div className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex justify-center">
+      {team && <header className="app-header bg-gray-900">
+        <div className="clock-bar">
         <MatchClock
           key={activeTeam}
+          compact
           running={clockRunning ?? false}
           virtualStart={clockVirtualStart ?? null}
           elapsed={clockElapsed ?? 0}
@@ -210,45 +210,14 @@ export default function App() {
           onReset={handleClockReset}
           onMinute={setMinute}
         />
-      </div>}
-
-      {/* ── Scrollable content ── */}
-      <main className="flex-1 overflow-y-auto pb-8">
-
-        {/* ── Team selector (scrolls away) ── */}
-        <div className="bg-gray-900 border-b border-gray-800 flex flex-wrap gap-2 px-4 py-2">
-          {teams.map(t => (
-            <button
-              key={t.id}
-              data-team-id={t.id}
-              onClick={handleSwitchTeam}
-              className={`flex-1 py-2 rounded-xl font-bold text-sm transition-colors ${
-                activeTeam === t.id
-                  ? `${TEAM_COLORS[t.color].activeColor} text-white`
-                  : 'bg-gray-800 text-gray-400'
-              }`}
-            >
-              {t.name}
-            </button>
-          ))}
-          <button type="button" onClick={() => setManageTeams(value => !value)} aria-expanded={manageTeams || !team}
-            className="w-full py-2 rounded-lg text-sm text-gray-300 bg-gray-800">
-            {manageTeams && team ? 'Lukk lagadministrasjon' : 'Administrer lag'}
-          </button>
         </div>
-
-        {team && <SyncStatus teamId={activeTeam} />}
-        {saveError && <p role="alert" className="px-4 py-2 text-sm text-red-300">{saveError}</p>}
-
-        {(manageTeams || !team) && <TeamManager teams={teams} onTeamsChange={handleTeamsChange} />}
-
-        {/* ── Tab bar (scrolls away) ── */}
-        {team && <nav className={`border-b border-gray-800 flex ${team.navBg}`}>
+        <nav aria-label="Visning" className={`app-nav ${team.navBg}`}>
           {TABS.map(t => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex-1 py-3 text-sm font-bold transition-colors ${
+              aria-current={tab === t.id ? 'page' : undefined}
+              className={`flex-1 text-xs font-bold transition-colors ${
                 tab === t.id
                   ? `${team.textColor} border-b-2 ${team.borderColor}`
                   : 'text-gray-500'
@@ -257,28 +226,17 @@ export default function App() {
               {t.label}
             </button>
           ))}
-        </nav>}
+        </nav>
+        <SyncStatus teamId={activeTeam} compact />
+      </header>}
 
+      <main className={team && tab === 'kampdag' ? 'match-area' : 'squad-area'}>
+        {saveError && <div role="alert" className="save-error bg-red-950 border border-red-700 rounded-xl p-3 text-sm text-red-200">
+          <p>{saveError}</p>
+          <button type="button" onClick={() => setSaveError('')} className="mt-2 rounded bg-red-900 px-3 py-1">Lukk varsel</button>
+        </div>}
         {team && tab === 'kampdag' && (
-          <div className="p-3 max-w-sm mx-auto flex flex-col gap-4">
-
-            {/* Formation selector */}
-            <div className="flex gap-2">
-              {FORMATION_KEYS.map(f => (
-                <button
-                  key={f}
-                  onClick={() => handleFormationChange(f)}
-                  className={`px-3 py-2 rounded-xl font-bold text-sm transition-colors ${
-                    formation === f
-                      ? `${team.formBg} text-white`
-                      : 'bg-gray-800 text-gray-300'
-                  }`}
-                >
-                  {f}
-                </button>
-              ))}
-            </div>
-
+          <div className="match-surface">
             <FormationView
               key={`${activeTeam}-${formation}`}
               formation={formation}
@@ -292,14 +250,38 @@ export default function App() {
               onResetOppsett={handleResetOppsett}
               onResetSpilletid={handleResetSpilletid}
             />
-
-            <SubLog log={subLog} squad={squad} />
           </div>
         )}
 
-        {team && tab === 'squad' && (
-          <SquadManager key={activeTeam} squad={squad} onSquadChange={handleSquadChange} />
-        )}
+        {(tab === 'squad' || !team) && <>
+          <div className="bg-gray-900 border-b border-gray-800 flex flex-wrap gap-2 px-4 py-2">
+            {teams.map(t => (
+              <button key={t.id} data-team-id={t.id} onClick={handleSwitchTeam}
+                className={`flex-1 py-2 rounded-xl font-bold text-sm ${activeTeam === t.id ? `${TEAM_COLORS[t.color].activeColor} text-white` : 'bg-gray-800 text-gray-400'}`}>
+                {t.name}
+              </button>
+            ))}
+            <button type="button" onClick={() => setManageTeams(value => !value)} aria-expanded={manageTeams || !team}
+              className="w-full py-2 rounded-lg text-sm text-gray-300 bg-gray-800">
+              {manageTeams && team ? 'Lukk lagadministrasjon' : 'Administrer lag'}
+            </button>
+          </div>
+          {(manageTeams || !team) && <TeamManager teams={teams} onTeamsChange={handleTeamsChange} />}
+          {team && <>
+            <section className="px-4 pt-4 max-w-lg mx-auto" aria-label="Formasjon">
+              <h2 className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-400">Formasjon</h2>
+              <div className="flex gap-2">
+                {FORMATION_KEYS.map(f => (
+                  <button key={f} onClick={() => handleFormationChange(f)} aria-pressed={formation === f}
+                    className={`flex-1 py-2 rounded-xl font-bold text-sm ${formation === f ? `${team.formBg} text-white` : 'bg-gray-800 text-gray-300'}`}>
+                    {f}
+                  </button>
+                ))}
+              </div>
+            </section>
+            <SquadManager key={activeTeam} squad={squad} onSquadChange={handleSquadChange} />
+          </>}
+        </>}
       </main>
     </div>
   )

@@ -1,5 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { FORMATIONS } from '../formations'
+import OverlayPanel from './OverlayPanel'
+import SubLog from './SubLog'
+
+function fieldPoint(position, width, height) {
+  return { x: position.x / 100 * width, y: Math.min(height - 30, Math.max(44, position.y / 100 * height)) }
+}
 
 export default function FormationView({
   formation,
@@ -14,6 +20,18 @@ export default function FormationView({
   onResetSpilletid,
 }) {
   const svgRef = useRef(null)
+  const pitchRef = useRef(null)
+  const benchRef = useRef(null)
+  const touchHoldTimer = useRef(null)
+  const [pitchHeight, setPitchHeight] = useState(320)
+  useLayoutEffect(() => {
+    const observer = new ResizeObserver(entries => {
+      const { width, height } = entries[0].contentRect
+      if (width > 0 && height > 0) setPitchHeight(Math.round(height * 340 / width))
+    })
+    observer.observe(pitchRef.current)
+    return () => observer.disconnect()
+  }, [])
 
   // Always-current refs – event handlers never use stale closures
   const positionsRef     = useRef(positions)
@@ -32,6 +50,7 @@ export default function FormationView({
   const [selection, setSelection] = useState(null)
 
   useEffect(() => () => {
+    clearTimeout(touchHoldTimer.current)
     const listeners = touchListeners.current
     if (!listeners) return
     document.removeEventListener('touchmove', listeners.move)
@@ -46,7 +65,7 @@ export default function FormationView({
 
   // Visual feedback only
   const [dragOver, setDragOver] = useState(null)
-  const [confirmReset, setConfirmReset] = useState(null) // null | 'oppsett' | 'spilletid'
+  const [panel, setPanel] = useState(null) // null | 'log' | 'actions' | 'oppsett' | 'spilletid'
 
   const formDef    = FORMATIONS[formation]
   const playerById = Object.fromEntries(squad.map(p => [p.id, p]))
@@ -95,6 +114,7 @@ export default function FormationView({
     if (bi === undefined) return 1
     return ai - bi
   })
+  const benchOverflow = bench.length > 8
 
   function playerTime(id, isOnField) {
     const acc = (playMinutes ?? {})[id] ?? 0
@@ -114,21 +134,23 @@ export default function FormationView({
 
   function findPosAtPoint(clientX, clientY) {
     if (!svgRef.current) return null
-    const rect = svgRef.current.getBoundingClientRect()
-    const xPct = ((clientX - rect.left) / rect.width) * 100
-    const yPct = ((clientY - rect.top)  / rect.height) * 100
+    const matrix = svgRef.current.getScreenCTM()
+    if (!matrix) return null
+    const point = new DOMPoint(clientX, clientY).matrixTransform(matrix.inverse())
+    const { width, height } = svgRef.current.viewBox.baseVal
     const fd   = FORMATIONS[formationRef.current]
     let closest = null, minDist = Infinity
     for (const pos of fd.positions) {
-      const d = Math.hypot(pos.x - xPct, pos.y - yPct)
+      const target = fieldPoint(pos, width, height)
+      const d = Math.hypot(target.x - point.x, target.y - point.y)
       if (d < minDist) { minDist = d; closest = pos.id }
     }
-    return minDist < 9 ? closest : null
+    return minDist < 36 ? closest : null
   }
 
-  function isBelowField(clientY) {
-    if (!svgRef.current) return false
-    return clientY > svgRef.current.getBoundingClientRect().bottom
+  function isInBench(clientX, clientY) {
+    const rect = benchRef.current?.getBoundingClientRect()
+    return rect && clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom
   }
 
   // ── Apply helpers (always use refs) ───────────────────────────
@@ -166,6 +188,7 @@ export default function FormationView({
   // passively before React re-renders and the effect runs.
 
   function removeTouchListeners() {
+    clearTimeout(touchHoldTimer.current)
     if (!touchListeners.current) return
     document.removeEventListener('touchmove', touchListeners.current.move)
     document.removeEventListener('touchend',  touchListeners.current.end)
@@ -191,10 +214,18 @@ export default function FormationView({
   function onBenchTouchStart(e, playerId) {
     const start = e.touches[0]
     let moved = false
+    let allowVerticalDrag = !benchOverflow
     activeTouchDrag.current = { type: 'bench', playerId }
 
     function move(e) {
       if (!moved && Math.hypot(e.touches[0].clientX - start.clientX, e.touches[0].clientY - start.clientY) < 8) return
+      if (!moved && !allowVerticalDrag && Math.abs(e.touches[0].clientY - start.clientY) > Math.abs(e.touches[0].clientX - start.clientX)) {
+        // A quick vertical swipe scrolls a large bench. Holding first still
+        // allows a touch drag; normal two-row benches need no long press.
+        activeTouchDrag.current = null
+        removeTouchListeners()
+        return
+      }
       moved = true
       setSelection(null)
       setBenchDragging(playerId)
@@ -217,6 +248,7 @@ export default function FormationView({
     }
 
     attachTouchListeners(move, end)
+    if (benchOverflow) touchHoldTimer.current = setTimeout(() => { allowVerticalDrag = true }, 220)
   }
 
   function onFieldTouchStart(e, playerId, source) {
@@ -230,7 +262,7 @@ export default function FormationView({
       setSelection(null)
       e.preventDefault()
       const { clientX, clientY } = e.touches[0]
-      setDragOver(isBelowField(clientY) ? 'bench' : findPosAtPoint(clientX, clientY))
+      setDragOver(isInBench(clientX, clientY) ? 'bench' : findPosAtPoint(clientX, clientY))
     }
 
     function end(e) {
@@ -238,7 +270,7 @@ export default function FormationView({
       const drag = activeTouchDrag.current
       if (drag && moved) {
         suppressClickUntil.current = e.timeStamp + 500
-        if (isBelowField(clientY)) {
+        if (isInBench(clientX, clientY)) {
           applyFieldToBench(drag.source)
         } else {
           const posId = findPosAtPoint(clientX, clientY)
@@ -269,58 +301,19 @@ export default function FormationView({
 
   // ── Render ─────────────────────────────────────────────────────
 
-  const W = 340, H = 320
+  const W = 340, H = pitchHeight
+  const playerRadius = Math.min(24, Math.max(17, H / 14))
+  const fontScale = playerRadius / 24
 
   return (
-    <div className="flex flex-col items-center gap-3 select-none w-full">
-
-      <div className="flex gap-2 w-full">
-        <div
-          className={`flex-1 text-center text-xs py-2 rounded-lg transition-colors cursor-pointer select-none ${
-            dragOver === 'bench' ? 'bg-yellow-400 text-black font-bold' : 'bg-yellow-500 text-black hover:bg-yellow-400'
-          }`}
-          onDragOver={e => { e.preventDefault(); setDragOver('bench') }}
-          onDragLeave={() => setDragOver(null)}
-          onDrop={onBenchZoneDrop}
-          onClick={() => setConfirmReset('oppsett')}
-        >
-          Nullstill kampoppsett
-        </div>
-        <div
-          className="flex-1 text-center text-xs py-2 rounded-lg transition-colors cursor-pointer select-none bg-yellow-500 text-black hover:bg-yellow-400"
-          onClick={() => setConfirmReset('spilletid')}
-        >
-          Nullstill spilletid
-        </div>
-      </div>
-
-      {(confirmReset === 'oppsett' || confirmReset === 'spilletid') && (
-        <div className="bg-red-950 border border-red-700 rounded-xl px-4 py-3 flex items-center justify-between gap-3 w-full">
-          <span className="text-sm text-red-200">
-            {confirmReset === 'spilletid' ? 'Nullstill spilletid og byttelogg?' : 'Tøm kampoppsettet?'}
-          </span>
-          <div className="flex gap-2">
-            <button onClick={() => {
-              setSelection(null)
-              if (confirmReset === 'spilletid') { setBenchTailIds(new Set()); onResetSpilletid() }
-              else onResetOppsett()
-              setConfirmReset(null)
-            }} className="bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-bold">Ja</button>
-            <button onClick={() => setConfirmReset(null)} className="bg-gray-700 text-white px-3 py-2 rounded-lg text-sm">Avbryt</button>
-          </div>
-        </div>
-      )}
-
-      <p className="text-xs text-center text-pink-200" aria-live="polite">
-        {selected
-          ? `${playerById[selected.playerId].name} valgt – trykk på en spiller ${selected.source == null ? 'på banen' : 'på benken'} for å bytte. Trykk igjen for å avbryte.`
-          : 'Trykk på en spiller på benken og en på banen for å bytte – eller motsatt.'}
-      </p>
-
+    <div className="match-layout select-none">
+      <p className="sr-only" aria-live="polite">{selected ? `${playerById[selected.playerId].name} valgt` : ''}</p>
+      <div ref={pitchRef} className="pitch-frame">
       <svg
         ref={svgRef}
         viewBox={`0 0 ${W} ${H}`}
-        className="w-full rounded-xl border-2 border-green-800"
+        className="match-pitch rounded-xl border-2 border-green-800"
+        aria-label="Fotballbane"
         style={{ background: '#2d7a2d' }}
         onDragOver={e => e.preventDefault()}
       >
@@ -329,8 +322,7 @@ export default function FormationView({
         {formDef.positions.map(pos => {
           const playerId = positions[pos.id]
           const player   = playerId ? playerById[playerId] : null
-          const cx       = (pos.x / 100) * W
-          const cy       = (pos.y / 100) * H
+          const { x: cx, y: cy } = fieldPoint(pos, W, H)
           const isOver   = dragOver === pos.id
           const isSelected = selected?.playerId === playerId && !!player
 
@@ -352,7 +344,7 @@ export default function FormationView({
               onDrop={() => onFieldMouseDrop(pos.id)}
             >
               <circle
-                cx={cx} cy={cy} r={28}
+                cx={cx} cy={cy} r={playerRadius + 4}
                 fill={isOver ? (benchDragging ? 'rgba(220,38,38,0.35)' : 'rgba(255,255,255,0.28)') : 'rgba(0,0,0,0.2)'}
                 stroke={isOver ? (benchDragging ? '#ef4444' : 'white') : 'rgba(255,255,255,0.35)'}
                 strokeWidth="2"
@@ -361,7 +353,7 @@ export default function FormationView({
               {player ? (
                 <>
                   <circle
-                    cx={cx} cy={cy} r={24}
+                    cx={cx} cy={cy} r={playerRadius}
                     fill={isSelected ? '#ec4899' : '#1d4ed8'}
                     stroke={isSelected ? '#fbcfe8' : '#60a5fa'}
                     strokeWidth="2.5"
@@ -375,11 +367,11 @@ export default function FormationView({
                     style={{ cursor: 'pointer' }}
                   />
                   <text x={cx} y={cy - 7} textAnchor="middle" dominantBaseline="middle"
-                    fontSize="13" fontWeight="bold" fill="white" style={{ pointerEvents: 'none' }}>
+                    fontSize={13 * fontScale} fontWeight="bold" fill="white" style={{ pointerEvents: 'none' }}>
                     {player.number}
                   </text>
                   <text x={cx} y={cy + 9} textAnchor="middle" dominantBaseline="middle"
-                    fontSize="9.5" fill={isSelected ? '#fff' : '#bfdbfe'} style={{ pointerEvents: 'none' }}>
+                    fontSize={9.5 * fontScale} fill={isSelected ? '#fff' : '#bfdbfe'} style={{ pointerEvents: 'none' }}>
                     {player.name.length > 8 ? player.name.slice(0, 7) + '.' : player.name}
                   </text>
                   {(() => {
@@ -408,28 +400,32 @@ export default function FormationView({
           )
         })}
       </svg>
+      </div>
 
-      <div className="flex justify-center gap-5 text-[10px] text-gray-400">
+      <section className="bench-dock" aria-label="Benk">
+        <div className="bench-heading">
+          <p className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Benk ({bench.length})</p>
+          <div className="flex gap-2 text-[9px] text-gray-400" aria-label="Spilletidsfarger">
         {[['#16a34a','1–12m'],['#eab308','13–19m'],['#dc2626','≥20m']].map(([c,l]) => (
           <span key={l} className="flex items-center gap-1">
             <span className="w-5 h-3 rounded shrink-0" style={{ background: c }} />
             {l}
           </span>
         ))}
-      </div>
-
-      <div className="w-full">
-        <p className="text-xs uppercase tracking-widest text-gray-500 mb-2 font-bold">
-          Benk ({bench.length})
-        </p>
-        {bench.length === 0 ? (
-          <p className="text-gray-600 text-sm text-center py-2">Alle er på banen</p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
+          </div>
+        </div>
+          <div ref={benchRef} className={`bench-grid ${dragOver === 'bench' ? 'bench-drop-active' : ''}`}
+            onDragOver={e => { e.preventDefault(); setDragOver('bench') }}
+            onDragLeave={() => setDragOver(null)} onDrop={onBenchZoneDrop}
+            tabIndex={benchOverflow ? 0 : undefined} role={benchOverflow ? 'region' : undefined}
+            aria-label={benchOverflow ? 'Benkspillere, rull for flere' : undefined}>
+            {bench.length === 0 && <p className="col-span-4 text-gray-500 text-sm text-center pt-4">Alle er på banen</p>}
             {bench.map(player => (
               <button
                 type="button"
                 key={player.id}
+                aria-label={`${player.number} ${player.name}, ${playerTime(player.id, false)} minutter`}
+                title={benchOverflow ? `${player.name} – hold inne for å dra, sveip for å rulle` : player.name}
                 aria-pressed={selected?.playerId === player.id}
                 onClick={e => handlePlayerClick(player.id, null, e)}
                 draggable
@@ -440,22 +436,44 @@ export default function FormationView({
                 }}
                 onDragEnd={e => { suppressClickUntil.current = e.timeStamp + 500; setBenchDragging(null); setDragOver(null) }}
                 onTouchStart={e => onBenchTouchStart(e, player.id)}
-                style={{ touchAction: 'none' }}
-                className={`flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer border text-white ${selected?.playerId === player.id ? 'bg-pink-600 border-pink-200 ring-2 ring-pink-300' : 'bg-gray-800 border-gray-700'}`}
+                style={{ touchAction: benchOverflow ? 'pan-y' : 'none' }}
+                className={`bench-player rounded-xl cursor-pointer border text-white ${selected?.playerId === player.id ? 'bg-pink-600 border-pink-200 ring-2 ring-inset ring-pink-300' : 'bg-gray-800 border-gray-700'}`}
               >
-                <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${selected?.playerId === player.id ? 'bg-pink-500' : 'bg-blue-600'}`}>
+                <span className="bench-player-meta">
+                <span className={`bench-number rounded-full font-bold ${selected?.playerId === player.id ? 'bg-pink-500' : 'bg-blue-600'}`}>
                   {player.number}
                 </span>
-                <span className="font-medium text-sm">{player.name}</span>
-                {(() => { const t = playerTime(player.id, false); return t > 0 && (
-                  <span className="ml-auto text-xs font-bold text-green-400">{t}m</span>
-                )})()}
+                <span className="text-[10px] font-bold text-green-400">{playerTime(player.id, false)}m</span>
+                </span>
+                <span className="bench-name">{player.name}</span>
               </button>
             ))}
           </div>
-        )}
-      </div>
+        <div className="match-actions">
+          <button type="button" onClick={() => setPanel('log')} aria-haspopup="dialog" aria-expanded={panel === 'log'}>Byttelogg ({subLog.length})</button>
+          <button type="button" onClick={() => setPanel('actions')} aria-haspopup="dialog" aria-expanded={panel !== null && panel !== 'log'}>Nullstill…</button>
+        </div>
+      </section>
 
+      {panel && <OverlayPanel title={panel === 'log' ? 'Byttelogg' : panel === 'actions' ? 'Kamphandlinger' : 'Bekreft nullstilling'} onClose={() => setPanel(null)}>
+        {panel === 'log' ? <SubLog log={subLog} squad={squad} /> : panel === 'actions' ? (
+          <div className="grid gap-3">
+            <button type="button" onClick={() => setPanel('oppsett')} className="rounded-xl bg-gray-800 p-3 text-sm">Nullstill kampoppsett</button>
+            <button type="button" onClick={() => setPanel('spilletid')} className="rounded-xl bg-gray-800 p-3 text-sm">Nullstill spilletid</button>
+          </div>
+        ) : <div className="space-y-4">
+          <p className="text-sm text-red-200">{panel === 'spilletid' ? 'Nullstill spilletid og byttelogg?' : 'Tøm kampoppsettet?'}</p>
+          <div className="flex gap-3">
+            <button type="button" onClick={() => {
+              setSelection(null)
+              if (panel === 'spilletid') { setBenchTailIds(new Set()); onResetSpilletid() }
+              else onResetOppsett()
+              setPanel(null)
+            }} className="bg-red-600 rounded-lg px-4 py-2 text-sm font-bold">Ja</button>
+            <button type="button" onClick={() => setPanel(null)} className="bg-gray-700 rounded-lg px-4 py-2 text-sm">Avbryt</button>
+          </div>
+        </div>}
+      </OverlayPanel>}
     </div>
   )
 }

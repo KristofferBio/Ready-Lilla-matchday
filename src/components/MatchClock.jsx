@@ -6,7 +6,7 @@ function clockSeconds(running, virtualStart, elapsed) {
     : elapsed ?? 0
 }
 
-export default function MatchClock({ running, virtualStart, elapsed, onStart, onPause, onReset, onMinute }) {
+export default function MatchClock({ running, virtualStart, elapsed, onStart, onPause, onReset, onMinute, compact = false }) {
   const [activeDisplay, setActiveDisplay] = useState(() => clockSeconds(running, virtualStart, elapsed))
   const display = running ? activeDisplay : elapsed ?? 0
   const [confirmReset, setConfirmReset] = useState(false)
@@ -39,13 +39,13 @@ export default function MatchClock({ running, virtualStart, elapsed, onStart, on
   }
 
   return (
-    <div className="flex items-center gap-3 bg-gray-900 px-4 py-2 rounded-xl border border-gray-700">
-      <span className="text-2xl font-mono font-bold text-green-400 min-w-[72px] text-center">
+    <div className={compact ? 'match-clock flex items-center gap-2' : 'flex items-center gap-3 bg-gray-900 px-4 py-2 rounded-xl border border-gray-700'}>
+      <span className={`${compact ? 'text-xl min-w-[62px]' : 'text-2xl min-w-[72px]'} font-mono font-bold text-green-400 text-center`}>
         {mins}:{secs}
       </span>
       <button
         onClick={handleStartPause}
-        className={`px-4 py-2 rounded-lg font-bold text-sm min-w-[72px] ${
+        className={`${compact ? 'px-3 py-1.5 text-xs min-w-[58px]' : 'px-4 py-2 text-sm min-w-[72px]'} rounded-lg font-bold ${
           running ? 'bg-yellow-500 text-black' : 'bg-green-600 text-white'
         }`}
       >
@@ -55,13 +55,13 @@ export default function MatchClock({ running, virtualStart, elapsed, onStart, on
         <>
           <button
             onClick={() => { onReset(); setConfirmReset(false) }}
-            className="px-4 py-2 rounded-lg font-bold text-sm bg-red-600 text-white"
+            className={`${compact ? 'px-2 py-1.5 text-xs' : 'px-4 py-2 text-sm'} rounded-lg font-bold bg-red-600 text-white`}
           >
             Bekreft
           </button>
           <button
             onClick={() => setConfirmReset(false)}
-            className="px-4 py-2 rounded-lg font-bold text-sm bg-gray-700 text-white"
+            className={`${compact ? 'px-2 py-1.5 text-xs' : 'px-4 py-2 text-sm'} rounded-lg font-bold bg-gray-700 text-white`}
           >
             Avbryt
           </button>
@@ -69,7 +69,7 @@ export default function MatchClock({ running, virtualStart, elapsed, onStart, on
       ) : (
         <button
           onClick={() => setConfirmReset(true)}
-          className="px-4 py-2 rounded-lg font-bold text-sm bg-gray-700 text-white"
+          className={`${compact ? 'px-2 py-1.5 text-xs' : 'px-4 py-2 text-sm'} rounded-lg font-bold bg-gray-700 text-white`}
         >
           Reset
         </button>

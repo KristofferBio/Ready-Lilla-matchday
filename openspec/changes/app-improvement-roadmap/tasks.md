@@ -8,9 +8,9 @@ P0 er påbegynt og den automatiserte delen er gjennomført etter brukerens godkj
 - [x] 1.2 Etabler Firebase Emulator og nettlesertester av produksjonsbygget under riktig basebane; verifiser med en test som leser/skriver kun testlag og aldri produksjon.
 - [x] 1.3 Rett eksisterende React-hooks-/lint-feil uten å endre bytte- eller klokkeatferd; verifiser med `npm run lint`, `node --test tests/*.test.js` og regresjonstest av klokke/trykkbytter.
 - [x] 1.4 Gjennomgå `npm audit`, skill produksjons- og utviklingsavhengigheter og foreslå målrettede oppdateringer; verifiser med dokumentert vurdering av alle høye/kritiske varsler og bygg/test etter hver godkjente oppdatering.
-- [ ] 1.5 Legg eksisterende tester, lint og bygg inn i CI og dokumenter lokal kjøring; verifiser med grønn testjobb og at README-kommandoene fungerer på en ren installasjon.
+- [x] 1.5 Legg eksisterende tester, lint og bygg inn i CI og dokumenter lokal kjøring; verifiser med grønn testjobb og at README-kommandoene fungerer på en ren installasjon.
 
-1.5 er delvis levert: `quality.yml` kjører lint, Node-tester, bygg og emulatortester, og Pages-jobben avhenger av kvalitetssjekken. Ren installasjon/lint/Node-tester/bygg er verifisert lokalt. Boksen står åpen til en faktisk GitHub Actions-kjøring er grønn; ingen push/publisering er utført.
+1.5 er verifisert: brukeren pushet commit `4ac8dda`, og [GitHub Actions-kjøring 36747091718](https://github.com/KristofferBio/Ready-Lilla-matchday/actions/runs/36747091718) fullførte med grønn kvalitetssjekk og Pages-publisering. `npm ci`, lint, Node-tester, bygg og emulatortester bestod i CI. Ren installasjon er også verifisert lokalt.
 
 ## 2. P0 – Offline og synkronisering før kampbruk
 
